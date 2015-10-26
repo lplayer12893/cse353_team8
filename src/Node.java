@@ -12,7 +12,7 @@ import java.util.ArrayList;
  */
 public class Node {
 	
-	private String name;
+	private Integer destAddr;
 	private final boolean sendable;	//permission to send data to a socket
 	private Integer sendPort;
 	private final boolean recievable;	//permission to recieve data from socket
