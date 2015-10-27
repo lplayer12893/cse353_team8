@@ -37,13 +37,25 @@ public class Frame {
     }
     
     /**
+     * Constructs a Frame object from a binary frame
+     * @param frame
+     */
+    public Frame(Integer sa, String init){
+    	
+    	SA = sa;
+    	String [] s = init.split(":");
+    	DA = Integer.parseInt(s[0]);
+    	Data = s[1];
+    	SIZE = Data.length();
+    }
+    
+    /**
      * @param sA
      * @param dA
      * @param sIZE
      * @param data
      */
-    public Frame(int sA, int dA, int sIZE,
-            String data) {
+    public Frame(int sA, int dA, int sIZE, String data) {
         
         // If the size byte does not match the length of the data, populate the frame erroneously
         if(sIZE != data.length())
