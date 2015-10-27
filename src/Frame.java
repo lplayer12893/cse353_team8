@@ -123,7 +123,7 @@ public class Frame {
     /**
      * @return true if the frame is an acknowledgement of frame received, false otherwise
      */
-    public boolean isACK()
+    public boolean isAck()
     {
     	if(SIZE == 0 && Data.length() == 0)
     	{
