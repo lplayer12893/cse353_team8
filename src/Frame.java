@@ -108,6 +108,18 @@ public class Frame {
         return s; 
     }
 
+    /**
+     * @return true if the frame is an acknowledgement of frame received, false otherwise
+     */
+    public boolean isACK()
+    {
+    	if(SIZE == 0 && Data.length() == 0)
+    	{
+    		return true;
+    	}
+    	return false;
+    }
+    
     @Override
     public String toString(){
         if(SIZE == 0){    //size == 0 indicates the frame is an ACK
