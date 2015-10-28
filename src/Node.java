@@ -9,6 +9,8 @@ import java.io.PrintWriter;
 import java.net.*;
 import java.util.ArrayList;
 
+import com.cse353_Lucas_Stuyvesant_p2.STPLP_Sim.Frame;
+
 /**
  * Contains flags and functions to control server and client sockets
  * @author Lucas Stuyvesant

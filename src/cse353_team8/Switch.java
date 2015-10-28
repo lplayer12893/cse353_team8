@@ -14,7 +14,7 @@ public class Switch {
 	ArrayList<Frame> buffer;
 	boolean termflag;
 	HashMap <Integer, Integer> switchTable ;
-	
+	Queue table = null;
 
 	
 	
@@ -64,9 +64,27 @@ public class Switch {
 		 chat();
 	}
 
+	
+	public void recieveFrame(Frame frame)
+	{
+		
+		while(frame == null){
+			
+			Thread.sleep(100);
+			
+		}
+		// thread to insert frame into queue
+		if (frame.equals(switchTable) == false){
+			
+			
+		}
+		
+	
+	
+	}
 
 
-
+	
 	private void chat() {
 		// TODO Auto-generated method stub
 		

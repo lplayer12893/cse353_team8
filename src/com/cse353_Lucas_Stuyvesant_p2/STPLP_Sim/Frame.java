@@ -1,3 +1,5 @@
+package com.cse353_Lucas_Stuyvesant_p2.STPLP_Sim;
+
 /**
  * A frame to be sent in an STPLP MAC protocol simulator
  * @author Lucas Stuyvesant
