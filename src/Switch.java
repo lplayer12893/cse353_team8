@@ -1,8 +1,11 @@
+package cse353_team8;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
+
+import com.cse353_Lucas_Stuyvesant_p2.STPLP_Sim.Frame;
 
 public class Switch {
 	
@@ -11,7 +14,7 @@ public class Switch {
 	ArrayList<Frame> buffer;
 	boolean termflag;
 	HashMap <Integer, Integer> switchTable ;
-	
+	Queue table = null;
 
 	
 	
@@ -61,9 +64,27 @@ public class Switch {
 		 chat();
 	}
 
+	
+	public void recieveFrame(Frame frame)
+	{
+		
+		while(frame == null){
+			
+			Thread.sleep(100);
+			
+		}
+		// thread to insert frame into queue
+		if (frame.equals(switchTable) == false){
+			
+			
+		}
+		
+	
+	
+	}
 
 
-
+	
 	private void chat() {
 		// TODO Auto-generated method stub
 		
