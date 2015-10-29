@@ -9,8 +9,6 @@ import java.io.PrintWriter;
 import java.net.*;
 import java.util.ArrayList;
 
-import com.cse353_Lucas_Stuyvesant_p2.STPLP_Sim.Frame;
-
 /**
  * Contains flags and functions to control server and client sockets
  * @author Lucas Stuyvesant
@@ -101,7 +99,7 @@ public class Node {
 					Socket client = new Socket((String)null, sendPort);	//connect to socket server
 					
 					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
-					
+
 					for(Frame s: dataOut){	//write data to socket
 						if(!unAcked.contains(s.getDA())) {
 							writer.write(s.toBinFrame());
