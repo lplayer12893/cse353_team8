@@ -16,13 +16,11 @@ import java.util.ArrayList;
 public class Node {
 	
 	private Integer address;
-	private Integer sendPort;
-	private Integer recievePort;
 	private boolean termFlag;
 	private ArrayList<Integer> unAcked;
 	private ArrayList<String> dataIn;	//data read from socket
 	private ArrayList<Frame> dataOut;	//data written to socket
-	private Socket sendSock;
+	private Socket sock;
 
 	public Node(){
 		this(0,null,null);
@@ -91,7 +89,7 @@ public class Node {
 						return;
 					}
 					
-					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(sendSock.getOutputStream()));	//get socket outputStream
+					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
 					
 					for(Frame s: dataOut){	//write data to socket
 						if(!unAcked.contains(s.getDA())) {
@@ -102,7 +100,7 @@ public class Node {
 					}
 					
 					writer.close();	//close socket and writer
-					sendSock.close();
+					sock.close();
 					
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -127,10 +125,7 @@ public class Node {
 			public void run() {
 				
 				try {
-					ServerSocket server = new ServerSocket(recievePort);	//establish a server
-					Socket client = server.accept();	//accept a socket request
-					
-					BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));	//get reader from socket
+					BufferedReader reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
 					String s = null;
 					
 					while((s = reader.readLine()) == null){	//sleep, periodically checking for data
@@ -155,7 +150,6 @@ public class Node {
 					printData();
 					
 					reader.close();	//close reader and server
-					server.close();
 					
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -177,7 +171,7 @@ public class Node {
 		String s = null;
 		
 		try {
-			sendSock = new Socket((String)null, 409152);	//connect to switch		
+			sock = new Socket((String)null, 49152);	//connect to switch		
 		} catch (UnknownHostException e) {
 			System.err.println("Host port does not exist");
 			e.printStackTrace();
@@ -187,17 +181,19 @@ public class Node {
 		}
 		
 		try {
-			reader = new BufferedReader(new InputStreamReader(sendSock.getInputStream()));	//get reader from socket
-			s = reader.readLine();	//read new port number from socket
-			
-			sendSock.close();	//close old socket
-			
-			sendPort = Integer.valueOf(s);
-			recievePort = sendPort; 
-			sendSock = new Socket((String)null, sendPort);	//connect to new port number
+			reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
+			while((s = reader.readLine()) == null)	//read new port number from socket
+			{
+				Thread.sleep(500);
+			}
+			sock.close();	//close old socket
+			sock = new Socket((String)null, Integer.valueOf(s));	//connect to new port number
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block stub
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
