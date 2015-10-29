@@ -9,8 +9,6 @@ import java.io.PrintWriter;
 import java.net.*;
 import java.util.ArrayList;
 
-import com.cse353_Lucas_Stuyvesant_p2.STPLP_Sim.Frame;
-
 /**
  * Contains flags and functions to control server and client sockets
  * @author Lucas Stuyvesant
@@ -24,37 +22,32 @@ public class Node {
 	private ArrayList<Integer> unAcked;
 	private ArrayList<String> dataIn;	//data read from socket
 	private ArrayList<Frame> dataOut;	//data written to socket
+	private Socket sendSock;
 
 	public Node(){
-		this(0,0,0,null,null);
+		this(0,null,null);
 	}
 	
 	
-	public Node(Integer i, Integer sp, Integer rp, ArrayList<String> di, ArrayList<Frame> dt){
+	public Node(Integer i, ArrayList<String> di, ArrayList<Frame> dt){
 		
 			address = i;
-			sendPort = sp;
-			recievePort = rp;
 			dataIn = di;
 			
 			BufferedReader in = null;
+			String s = null;
+			Frame f;
+			
 			try {
 				in = new BufferedReader(new FileReader("node"+i+".txt"));
-			} catch (FileNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			
-			String s = null;
-			try {
-				Frame f;
+				
 				while((s = in.readLine()) != null)
 				{
 					f = new Frame(address,s);
 					dataOut.add(f);
 				}
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
+				System.err.println("Unable to read from file" + e.getMessage());
 				e.printStackTrace();
 			}
 		Thread chatter = new Thread() {
@@ -98,9 +91,7 @@ public class Node {
 						return;
 					}
 					
-					Socket client = new Socket((String)null, sendPort);	//connect to socket server
-					
-					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
+					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(sendSock.getOutputStream()));	//get socket outputStream
 					
 					for(Frame s: dataOut){	//write data to socket
 						if(!unAcked.contains(s.getDA())) {
@@ -111,7 +102,7 @@ public class Node {
 					}
 					
 					writer.close();	//close socket and writer
-					client.close();
+					sendSock.close();
 					
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -141,6 +132,7 @@ public class Node {
 					
 					BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));	//get reader from socket
 					String s = null;
+					
 					while((s = reader.readLine()) == null){	//sleep, periodically checking for data
 						sleep(500);
 					}
@@ -181,7 +173,36 @@ public class Node {
 	}
 	
 	public void chat() {
+		BufferedReader reader = null;
+		String s = null;
+		
+		try {
+			sendSock = new Socket((String)null, 409152);	//connect to switch		
+		} catch (UnknownHostException e) {
+			System.err.println("Host port does not exist");
+			e.printStackTrace();
+		} catch (IOException e) {
+			System.err.println("Could not connect to host port");
+			e.printStackTrace();
+		}
+		
+		try {
+			reader = new BufferedReader(new InputStreamReader(sendSock.getInputStream()));	//get reader from socket
+			s = reader.readLine();	//read new port number from socket
+			
+			sendSock.close();	//close old socket
+			
+			sendPort = Integer.valueOf(s);
+			recievePort = sendPort; 
+			sendSock = new Socket((String)null, sendPort);	//connect to new port number
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block stub
+			e.printStackTrace();
+		}
+		
 		while(termFlag) {
+			
 			sendData();
 			recieveData();
 		}
