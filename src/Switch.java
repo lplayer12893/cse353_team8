@@ -23,7 +23,7 @@ public class Switch {
 	
 	ArrayDeque<Frame> buffer;	// buffer of frames, FIFO
 
-	Switch() {	
+	Switch() {
 		
 		// Initialize listener server socket
 		try {
@@ -33,20 +33,24 @@ public class Switch {
 			e.printStackTrace();
 		}
 		
-		// Initialize frame buffer
-		buffer = new ArrayDeque<Frame>();
+		serverList = new ArrayList<ServerSocket>();
+		clientList = new ArrayList<Socket>();
+		
+		// Initialize termination flag
+		termflag = true;
 		
 		// Initialize switching table
 		switchTable = new HashMap <Integer , Integer>();
-
-		// Initialize termination flag
-		termflag = true;
+		
+		// Initialize frame buffer
+		buffer = new ArrayDeque<Frame>();
 		
 		/**
 		 * Handles accepting connections, reassigning the connections, and closing connections on termination
 		 */
 		Thread a = new Thread(){	
 			public void run(){
+
 				int startingPort = 49153;
 				int i = 0;
 				BufferedWriter writer = null;
@@ -66,7 +70,9 @@ public class Switch {
 						writer.close();
 						client.close();
 						
-						clientList.add(serverList.get(serverList.size() - 1).accept());					
+						clientList.add(serverList.get(serverList.size() - 1).accept());
+						
+						i++;
 						
 					} catch (IOException e) {
 						System.err.println("Failed to establish reassigned connection to client");
@@ -170,17 +176,20 @@ public class Switch {
 						for(int i = 0; i < clientList.size(); i++)
 						{
 							reader = new BufferedReader(new InputStreamReader(clientList.get(i).getInputStream()));	//get reader from socket
-							if((s = reader.readLine()) != null){	//if there is data to receive, buffer it
-								f = new Frame(s);
-								
-								if(!switchTable.containsKey(f.getSA()))
-								{
-									switchTable.put(f.getSA(), i);
+							if(reader != null)
+							{
+								if((s = reader.readLine()) != null){	//if there is data to receive, buffer it
+									f = new Frame(s);
+									
+									if(!switchTable.containsKey(f.getSA()))
+									{
+										switchTable.put(f.getSA(), i);
+									}
+									
+									buffer.addLast(f);
 								}
-								
-								buffer.addLast(f);
+								reader.close();	//close reader
 							}
-							reader.close();	//close reader 
 						}
 					}
 					

@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -29,28 +30,63 @@ public class Node {
 	
 	public Node(Integer i, ArrayList<String> di, ArrayList<Frame> dt){
 		
-			address = i;
-			dataIn = di;
+		address = i;
+		dataIn = di;
+		dataOut = dt;
+		
+		BufferedReader in = null;
+		String s = null;
+		Frame f;
+		
+		try {
+			in = new BufferedReader(new FileReader("node"+i+".txt"));
 			
-			BufferedReader in = null;
-			String s = null;
-			Frame f;
-			
-			try {
-				in = new BufferedReader(new FileReader("node"+i+".txt"));
-				
-				while((s = in.readLine()) != null)
-				{
-					f = new Frame(address,s);
-					dataOut.add(f);
-				}
-			} catch (IOException e) {
-				System.err.println("Unable to read from file" + e.getMessage());
-				e.printStackTrace();
+			while((s = in.readLine()) != null)
+			{
+				f = new Frame(address,s);
+				dataOut.add(f);
 			}
+		} catch (IOException e) {
+			System.err.println("Unable to read from file" + e.getMessage());
+			e.printStackTrace();
+		}
+			
 		Thread chatter = new Thread() {
 			public void run() {
+				BufferedReader reader = null;
+				String s = null;
+				
+				try {
+					sock = new Socket((String)null, 49152);	//connect to switch		
+				} catch (UnknownHostException e) {
+					System.err.println("Host port does not exist");
+					e.printStackTrace();
+				} catch (IOException e) {
+					System.err.println("Could not connect to host port");
+					e.printStackTrace();
+				}
+				
+				try {
+					reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
+					while((s = reader.readLine()) == null)	//read new port number from socket
+					{
+						System.out.println("Node " + address + " is sleeping, waiting to be reassigned");
+
+						Thread.sleep(500);
+					}
+					sock.close();	//close old socket
+					sock = new Socket((String)null, Integer.valueOf(s));	//connect to new port number
+					
+				} catch (IOException e) {
+					// TODO Auto-generated catch block stub
+					e.printStackTrace();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
 				while(termFlag) {
+					
 					sendData();
 					recieveData();
 				}
@@ -62,18 +98,25 @@ public class Node {
 	/**
 	 * prints data recieved from socket
 	 */
-	public void printData(){
+	public void printData(Integer sa){
+		FileWriter w = null;
 		String addr = String.valueOf(address);
-		PrintWriter out = null;
+		
 		try {
-			out = new PrintWriter("node" + addr + "output.txt");
+			w = new FileWriter("node" + addr + "output.txt");
+			
+			for(String s: dataIn){
+				w.write(sa + ":" + s);
+			}
+			
 		} catch (FileNotFoundException e) {
 			System.out.println("Could not create file node" + addr + ".txt");
 			e.printStackTrace();
+			
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
-		for(String s: dataIn){
-			out.println((new Frame(s)).getSA() + ":" + s);
-		}
+
 	}
  
 	/**
@@ -129,6 +172,7 @@ public class Node {
 					String s = null;
 					
 					while((s = reader.readLine()) == null){	//sleep, periodically checking for data
+						System.out.println("Node " + address + " is sleeping in receive");
 						sleep(500);
 					}
 					
@@ -147,7 +191,7 @@ public class Node {
 						s = reader.readLine();
 					}
 					
-					printData();
+					printData(f.getSA());
 					
 					reader.close();	//close reader and server
 					
@@ -162,46 +206,8 @@ public class Node {
 				return;
 			}
 		};
-		recieve.start();	//start reciever
+		recieve.start();	//start receiver
 		return;
-	}
-	
-	public void chat() {
-		BufferedReader reader = null;
-		String s = null;
-		
-		try {
-			sock = new Socket((String)null, 49152);	//connect to switch		
-		} catch (UnknownHostException e) {
-			System.err.println("Host port does not exist");
-			e.printStackTrace();
-		} catch (IOException e) {
-			System.err.println("Could not connect to host port");
-			e.printStackTrace();
-		}
-		
-		try {
-			reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
-			while((s = reader.readLine()) == null)	//read new port number from socket
-			{
-				Thread.sleep(500);
-			}
-			sock.close();	//close old socket
-			sock = new Socket((String)null, Integer.valueOf(s));	//connect to new port number
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block stub
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		while(termFlag) {
-			
-			sendData();
-			recieveData();
-		}
 	}
 }
 	
