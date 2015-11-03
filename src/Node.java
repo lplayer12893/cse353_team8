@@ -6,7 +6,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.net.*;
 import java.util.ArrayList;
 
@@ -21,9 +20,10 @@ public class Node {
 	private ArrayList<Integer> unAcked;	//list of unacknowledged destination addresses
 	private ArrayList<String> dataIn;	//data read from socket
 	private ArrayList<Frame> dataOut;	//data written to socket
-	private Socket sock;
 	private BufferedReader reader;
 	private BufferedWriter writer;
+	private Integer sendPort;
+	private Integer receivePort;
 
 	public Node(){
 		this(0,null,null);
@@ -39,6 +39,8 @@ public class Node {
 		dataOut = dt;
 		reader = null;
 		writer = null;
+		sendPort = 0;
+		receivePort = 0;
 		
 		BufferedReader in = null;
 		String s = null;
@@ -62,6 +64,7 @@ public class Node {
 				
 				BufferedReader rdr = null;
 				String s = null;
+				Socket sock = null;
 				
 				try {
 					sock = new Socket((String)null, 49152);	//connect to switch
@@ -81,15 +84,11 @@ public class Node {
 
 						Thread.sleep(500);
 					}
+					sendPort = Integer.valueOf(s);
+					receivePort = Integer.valueOf(rdr.readLine());
 					
 					rdr.close();
 					sock.close();	//close old socket
-					
-					
-					sock = new Socket((String)null, Integer.valueOf(s));	//connect to new port number
-					
-					writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
-					reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
 										
 				} catch (IOException e) {
 					// TODO Auto-generated catch block stub
@@ -98,12 +97,9 @@ public class Node {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				
-				while(termFlag) {
 					
-					sendData();
-					recieveData();
-				}
+				sendData();
+				recieveData();
 			}
 		};
 		chatter.start();
@@ -137,33 +133,46 @@ public class Node {
 	 * Sends data from dataOut to the socket that accepts it when made
 	 */
 	public void sendData(){
-		
-		try {
-			if(dataOut == null){	//if there is no data to write to socket
+		Thread t = new Thread() {
+			public void run() {
+				try {
+					Socket sock = new Socket((String) null, sendPort);
+					writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
+					while(termFlag) {
+						if(dataOut.isEmpty()){	//if there is no data to write to socket
+							sleep(500);
+						}
+						else {	
+							for(Frame s: dataOut){	//write data to socket
+								if(!unAcked.contains(s.getDA()) || s.isAck()) {
+										
+									System.out.println(s.toString());
+										
+									writer.write(s.toBinFrame());
+									writer.newLine();
+									unAcked.add(s.getDA());
+								}
+							}
+							writer.flush();
+						}
+					}	
+					writer.close();	//close socket and writer
+					sock.close();
+					
+				} catch (IOException e) {
+					e.printStackTrace();
+					System.err.println("ERROR: There is a port conflict with Node " + address);
+					System.exit(-1);
+					return;
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
 				return;
 			}
-						
-			for(Frame s: dataOut){	//write data to socket
-				if(!unAcked.contains(s.getDA()) || s.isAck()) {
-					
-					System.out.println(s.toString());
-					
-					writer.write(s.toBinFrame());
-					writer.newLine();
-					unAcked.add(s.getDA());
-				}
-			}
-			
-			//writer.close();	//close socket and writer
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			System.err.println("ERROR: There is a port conflict with Node " + address);
-			System.exit(-1);
-			return;
-		}
-		
-		return;
+		};
+		t.start();
 	}
 	
 	/**
@@ -171,50 +180,61 @@ public class Node {
 	 * The data is then printed
 	 */
 	public void recieveData(){
+		Thread t = new Thread() {
+			public void run() {
+				try {
 		
-		try {
-
-			String s = null;
+					String s = null;
+					Socket client = null;
+					ServerSocket ss = new ServerSocket(receivePort);
+					while(termFlag) {
+						client = ss.accept();
+						
+						while(!reader.ready()){	//sleep, periodically checking for data
+							System.out.println("Node " + address + " is sleeping in receive");
+							Thread.sleep(500);
+						}
+						
+						s = reader.readLine();
+						Frame f = null;
+						
+						if(s != null){
+							f = new Frame(s);
+							if(f.isAck()) {
+								unAcked.remove(f.getDA());
+							}
+							else if(f.toString().equals("terminate")){	//if found terminate
+								termFlag = false;
+							}
+							else
+							{
+								dataOut.add(new Frame(address,f.getSA()));
+							}
 			
-			while(!reader.ready()){	//sleep, periodically checking for data
-				System.out.println("Node " + address + " is sleeping in receive");
-				Thread.sleep(500);
-			}
-			
-			s = reader.readLine();
-			Frame f = null;
-			
-			if(s != null){
-				f = new Frame(s);
-				if(f.isAck()) {
-					unAcked.remove(f.getDA());
+							dataIn.add(s);
+							s = reader.readLine();
+						}
+						
+						printData(f.getSA());
+						
+						reader.close();	//close reader
+						client.close();
+						}
+					
+					ss.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+					System.err.println("ERROR: There is a port conflict with Node " + address);
+					System.exit(-1);
+					return;
+				} catch (InterruptedException e) {
+					e.printStackTrace();
 				}
-				else if(f.toString().equals("terminate")){	//if found terminate
-					termFlag = false;
-				}
-				else
-				{
-					dataOut.add(new Frame(address,f.getSA()));
-				}
-
-				dataIn.add(s);
-				s = reader.readLine();
-			}
-			
-			printData(f.getSA());
-			
-			//reader.close();	//close reader
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			System.err.println("ERROR: There is a port conflict with Node " + address);
-			System.exit(-1);
+				
 			return;
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		
-		return;
+			}
+		};
+		t.start();
 	}
 }
 	
