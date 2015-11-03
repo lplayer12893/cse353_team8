@@ -16,6 +16,8 @@ public class Switch {
 	
 	ArrayList<ServerSocket> serverList;	// resources devoted to accepted clients
 	ArrayList<Socket> clientList;	// list of client information
+	ArrayList<BufferedReader> readers;
+	ArrayList<BufferedWriter> writers;
 	
 	boolean termflag;	// used to synchronize termination of the network
 	
@@ -35,6 +37,8 @@ public class Switch {
 		
 		serverList = new ArrayList<ServerSocket>();
 		clientList = new ArrayList<Socket>();
+		readers = new ArrayList<BufferedReader>();
+		writers = new ArrayList<BufferedWriter>();
 		
 		// Initialize termination flag
 		termflag = true;
@@ -59,23 +63,45 @@ public class Switch {
 				while(termflag){
 
 					try {
-						client = listener.accept();
-						
+						client = listener.accept();	//accept connection
 						writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
 						
-						serverList.add(new ServerSocket(startingPort + i));
+						serverList.add(new ServerSocket(startingPort + i));	//open new connection to which the client will be reassigned
 						
-						writer.write(Integer.toString(startingPort + i));
+						writer.write(Integer.toString(startingPort + i));	//reassign the client
 						
 						writer.close();
 						client.close();
-						
+												
 						clientList.add(serverList.get(serverList.size() - 1).accept());
+						readers.add(new BufferedReader(new InputStreamReader(clientList.get(clientList.size() - 1).getInputStream())));
+						writers.add(new BufferedWriter(new OutputStreamWriter(clientList.get(clientList.size() - 1).getOutputStream())));
+						
+						System.out.println("switch has reassigned a client to socket " + clientList.get(clientList.size() - 1).getPort());
 						
 						i++;
 						
 					} catch (IOException e) {
 						System.err.println("Failed to establish reassigned connection to client");
+						e.printStackTrace();
+					}
+				}
+				for(BufferedReader s : readers)
+				{
+					try {
+						s.close();
+					} catch (IOException e) {
+						System.err.println("Failed to close server socket");
+						e.printStackTrace();
+					}
+				}
+				
+				for(BufferedWriter s : writers)
+				{
+					try {
+						s.close();
+					} catch (IOException e) {
+						System.err.println("Failed to close server socket");
 						e.printStackTrace();
 					}
 				}
@@ -116,7 +142,6 @@ public class Switch {
 			public void run() {
 				
 				try {
-					BufferedWriter writer = null;
 					Frame f = null;
 					
 					while(termflag)
@@ -131,24 +156,21 @@ public class Switch {
 								{
 									if(i != switchTable.get(f.getSA()))
 									{
-										writer = new BufferedWriter(new OutputStreamWriter(clientList.get(i).getOutputStream()));
-										writer.write(f.toBinFrame());
+										
+										writers.get(i).write(f.toBinFrame());
 									}
 								}
 							}
 							else
 							{
-								writer = new BufferedWriter(new OutputStreamWriter(clientList.get(switchTable.get(f.getDA())).getOutputStream()));
-								writer.write(f.toBinFrame());
+								writers.get(switchTable.get(f.getDA())).write(f.toBinFrame());
 							}
 						}
 					}
-					
-					writer.close();	//close socket and writer
-					
+										
 				} catch (IOException e) {
-					e.printStackTrace();
 					System.err.println("ERROR: There is a port conflict");
+					System.exit(-1);
 					return;
 				}
 				
@@ -167,19 +189,29 @@ public class Switch {
 		Thread rec = new Thread() {
 			public void run() {
 				try {
-					BufferedReader reader = null;
 					String s = null;
 					Frame f = null;
+					int i = 0;
 					
 					while(termflag)
 					{
-						for(int i = 0; i < clientList.size(); i++)
-						{
-							reader = new BufferedReader(new InputStreamReader(clientList.get(i).getInputStream()));	//get reader from socket
-							if(reader != null)
+						sleep(5000);
+						System.out.println("Client list size: " + clientList.size());
+						for(i = 0; i < clientList.size(); i++)
+						{							
+							System.out.println("Switch reading from " + clientList.get(i).getPort());
+							
+							if(readers.get(i) != null)
 							{
-								if((s = reader.readLine()) != null){	//if there is data to receive, buffer it
+								System.out.println("Switch reader " + i + " is not null");
+								
+								if(readers.get(i).ready()){	//if there is data to receive, buffer it
+									
+									System.out.println("Switch reader " + i + " is ready");
+									s = readers.get(i).readLine();
 									f = new Frame(s);
+									
+									System.out.println("Switch received message " + f.toString());
 									
 									if(!switchTable.containsKey(f.getSA()))
 									{
@@ -188,15 +220,16 @@ public class Switch {
 									
 									buffer.addLast(f);
 								}
-								reader.close();	//close reader
 							}
 						}
 					}
 					
 				} catch (IOException e) {
-					e.printStackTrace();
 					System.err.println("ERROR: There is a port conflict");
-					return;
+					System.exit(-1);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
 			}
 		};
@@ -206,8 +239,8 @@ public class Switch {
 	}
 
 	private void chat() {
-		sendData();
 		receiveData();
+		sendData();
 	}
 }
 

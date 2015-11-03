@@ -14,8 +14,12 @@ public class Frame {
     private final Integer SIZE;
     private final String Data;
     
-    public Frame(){    //defaults to a token
+    public Frame(){
         this(0,0,0,"");
+    }
+    
+    public Frame(Integer sa, Integer da){	// creates an acknowledgment
+        this(sa,da,0,"");
     }
     
     /**
@@ -37,7 +41,7 @@ public class Frame {
     }
     
     /**
-     * Constructs a Frame object from a binary frame
+     * Constructs a Frame object from the input file
      * @param frame
      */
     public Frame(Integer sa, String init){
@@ -135,7 +139,7 @@ public class Frame {
     @Override
     public String toString(){
         if(SIZE == 0){    //size == 0 indicates the frame is an ACK
-            return "ACK";
+            return DA + " ACK";
         }
         return DA + "," + SIZE + "," + Data;
     }
