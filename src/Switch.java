@@ -14,11 +14,6 @@ public class Switch {
 	
 	ServerSocket listener;	// listens for and accepts new clients
 	
-	//ArrayList<ServerSocket> serverList;	// resources devoted to accepted clients
-	//ArrayList<Socket> clientList;	// list of client information
-	//ArrayList<BufferedReader> readers;
-	//ArrayList<BufferedWriter> writers;
-	
 	ArrayList<Integer> receivePorts;
 	ArrayList<Integer> sendPorts;
 	
@@ -40,11 +35,6 @@ public class Switch {
 		
 		receivePorts = new ArrayList<Integer>();
 		sendPorts = new ArrayList<Integer>();
-
-		//serverList = new ArrayList<ServerSocket>();
-		//clientList = new ArrayList<Socket>();
-		//readers = new ArrayList<BufferedReader>();
-		//writers = new ArrayList<BufferedWriter>();
 		
 		// Initialize termination flag
 		termflag = true;
@@ -70,6 +60,9 @@ public class Switch {
 
 					try {
 						client = listener.accept();	//accept connection
+						
+						receiveData(startingPort + i);	//set up new receiver for reassigned connection
+						
 						writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
 						
 						//serverList.add(new ServerSocket(startingPort + i));	//open new connection to which the client will be reassigned
@@ -82,12 +75,6 @@ public class Switch {
 						
 						writer.close();
 						client.close();
-												
-						//clientList.add(serverList.get(serverList.size() - 1).accept());
-						//readers.add(new BufferedReader(new InputStreamReader(clientList.get(clientList.size() - 1).getInputStream())));
-						//writers.add(new BufferedWriter(new OutputStreamWriter(clientList.get(clientList.size() - 1).getOutputStream())));
-						
-						//System.out.println("switch has reassigned a client to socket " + clientList.get(clientList.size() - 1).getPort());
 						
 						i++;
 						
@@ -100,7 +87,7 @@ public class Switch {
 		};
 		a.start();
 
-		chat();
+		sendData();
 	}
 	
 	
@@ -121,10 +108,12 @@ public class Switch {
 					{
 						if(!buffer.isEmpty())
 						{
+							System.out.println("Switch buffer is not empty");
 							f = buffer.pop();
 							if(!switchTable.containsKey(f.getDA()))
 							{
 								// Flood to all clients except the source
+								System.out.println("Switch is flooding frame '" + f.toString() + "'");
 								for(int i = 0; i < sendPorts.size(); i++)
 								{
 									if(i != switchTable.get(f.getSA()))
@@ -140,9 +129,13 @@ public class Switch {
 							}
 							else
 							{
+								System.out.println("Switch is sending frame '" + f.toString() + "' to port " + sendPorts.get(switchTable.get(f.getDA())));
 								s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
 								writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 								writer.write(f.toBinFrame());
+								
+								writer.close();
+								s.close();
 							}
 						}
 						sleep(500);
@@ -174,7 +167,6 @@ public class Switch {
 				try {
 					String s = null;
 					Frame f = null;
-					int i = 0;
 					ServerSocket listen = new ServerSocket(recPort);
 					Socket c = null;
 					BufferedReader reader = null;
@@ -185,26 +177,32 @@ public class Switch {
 							
 						if(reader != null)
 						{
-							while(!reader.ready())
+							while((s = reader.readLine()) == null)
 							{
+								System.out.println("Switch waiting for reader to be ready");
+								
 								sleep(500);
 							}
 								
-							System.out.println("Switch reader " + i + " is ready");
-							s = reader.readLine();
+							System.out.println("Switch reader " + recPort + " is ready");
+							//s = reader.readLine();
 							f = new Frame(s);
 							
 							System.out.println("Switch received message " + f.toString());
 							
 							if(!switchTable.containsKey(f.getSA()))
 							{
-								switchTable.put(f.getSA(), i);
+								System.out.println("Switch key: " + f.getSA() + " value: " + receivePorts.indexOf(recPort));
+								switchTable.put(f.getSA(), receivePorts.indexOf(recPort));
 							}
 							
+							System.out.println("Adding '" + f.toString() + "' to buffer");
 							buffer.addLast(f);
 						}
 						reader.close();
 						c.close();
+						reader = null;
+						c = null;
 					}
 					listen.close();
 					
@@ -220,15 +218,6 @@ public class Switch {
 		rec.start();
 		
 		return;
-	}
-
-	private void chat() {
-		
-		for(Integer i : receivePorts)
-		{
-			receiveData(i);
-		}
-		sendData();
 	}
 }
 

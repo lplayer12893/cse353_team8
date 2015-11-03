@@ -62,20 +62,11 @@ public class Frame {
     public Frame(int sA, int dA, int sIZE, String data) {
         
         // If the size byte does not match the length of the data, populate the frame erroneously
-        if(sIZE != data.length())
-        {
-            SA = null;
-            DA = null;
-            SIZE = null;
-            Data = null;
-        }
-        else
-        {
-            SA = sA;
-            DA = dA;
-            SIZE = sIZE;
-            Data = data;
-        }
+        
+        SA = sA;
+        DA = dA;
+        SIZE = sIZE;
+        Data = data;
     }
 
     /**
