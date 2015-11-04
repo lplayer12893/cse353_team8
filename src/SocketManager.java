@@ -17,7 +17,6 @@ public class SocketManager {
 		}
 		
 		new Switch();
+		System.out.println("Main thread termination");
 	}
-
-	
 }

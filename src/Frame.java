@@ -1,6 +1,6 @@
 /**
  * A frame to be sent in an STPLP MAC protocol simulator
- * @author Lucas Stuyvesant
+ * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
  */
 public class Frame {
     
@@ -30,7 +30,7 @@ public class Frame {
         SA = Integer.parseInt(frame.substring(0,8),2);
         DA = Integer.parseInt(frame.substring(8,16),2);
         SIZE = Integer.parseInt(frame.substring(16,24),2);
-        
+
         String s = frame.substring(24,24 + SIZE * 8);    
         char[] tmp = new char[SIZE];
         for(int i = 0; i < s.length(); i += 8){
@@ -127,11 +127,29 @@ public class Frame {
     	return false;
     }
     
+    /**
+     * @return true if the frame is a termination indicator, false otherwise
+     */
+    public boolean isTerm()
+    {
+    	if(DA == 0)
+    	{
+    		return true;
+    	}
+    	return false;
+    }
+    
     @Override
     public String toString(){
-        if(SIZE == 0){    //size == 0 indicates the frame is an ACK
-            return DA + " ACK";
+        if(DA == 0)
+        {
+        	return "termination";
         }
-        return DA + "," + SIZE + "," + Data;
+        else if(SIZE == 0)    //size == 0 indicates the frame is an ACK
+    	{
+            return "SA: " + SA + ", DA: " + DA + " ACK";
+    	}
+
+        return "SA: " + SA + ", DA: " + DA + "," + SIZE + "," + Data;
     }
 }

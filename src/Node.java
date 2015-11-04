@@ -84,7 +84,7 @@ public class Node {
 					
 					while(!rdr.ready())	//read new port number from socket
 					{
-						System.out.println("Node " + address + " is sleeping, waiting to be reassigned");
+					//	System.out.println("Node " + address + " is sleeping, waiting to be reassigned");
 
 						Thread.sleep(500);
 					}
@@ -105,9 +105,11 @@ public class Node {
 					
 				sendData();
 				recieveData();
+				return;
 			}
 		};
 		chatter.start();
+		return;
 	}
 	
 	/**
@@ -117,12 +119,16 @@ public class Node {
 		FileWriter w = null;
 		String addr = String.valueOf(address);
 		
+		System.out.println("Node " + address + " is trying to print");
+		
 		try {
 			w = new FileWriter("node" + addr + "output.txt");
 			
 			for(Frame s: dataIn){
-				w.append(s.getSA() + ":" + s.getData());
+				w.write(s.getSA() + ":" + s.getData() + "\n");
 			}
+			
+			w.close();
 			
 		} catch (FileNotFoundException e) {
 			System.out.println("Could not create file node" + addr + ".txt");
@@ -131,7 +137,7 @@ public class Node {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
+		return;
 	}
  
 	/**
@@ -143,36 +149,83 @@ public class Node {
 				try {
 					while(sendPort == 0)
 					{
-						System.out.println("Waiting for sendPort to change in " + address);
+					//	System.out.println("Waiting for sendPort to change in " + address);
 						sleep(500);
 					}
 					Socket sock = null;
 					BufferedWriter writer = null;
+					Frame s = null;
+					boolean hasTerminated = false;
 					while(termFlag) {
-						sock = new Socket((String) null, sendPort);
 						
-						if(dataOut.isEmpty()){	//if there is no data to write to socket
-							System.out.println("Node " + address + " is sleeping because dataOut is empty");
-							sleep(500);
-						}
-						else {
-							writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
-
-							for(int i = 0; i < dataOut.size(); i++)
+						if(dataOut.isEmpty())	//if there is no data to write to socket
+						{
+							if(unAcked.isEmpty())
 							{
-								Frame s = dataOut.get(i);
-								if((!unAcked.contains(s.getDA())) || s.isAck()) {
-									System.out.println("Node " + address + " is sending " + s.toString());
+								if(!hasTerminated)
+								{
+									hasTerminated = true;
+									sock = new Socket((String) null, sendPort);
+									writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
 									
+									s = new Frame();
+											
+									System.out.println("Node " + address + " is sending termination");
+											
 									writer.write(s.toBinFrame());
 									writer.newLine();
-									unAcked.add(s.getDA());
-									dataOut.remove(i);
+									
+									writer.close();
+									sock.close();
 								}
 							}
-							writer.close();
+							sleep(500);
 						}
-						sock.close();
+						else
+						{
+							if(canSend())
+							{
+								sock = new Socket((String) null, sendPort);
+								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
+								int size = dataOut.size();
+								int i = 0;
+								
+								while(true)
+								{
+									if(i >= size)
+									{
+										break;
+									}
+									s = dataOut.get(i);
+									
+									if((!unAcked.contains(s.getDA())) || s.isAck()) {
+										
+										System.out.println("Node " + address + " is sending " + s.toString());
+										
+										writer.write(s.toBinFrame());
+										writer.newLine();
+										
+										if(!s.isAck())
+										{
+											unAcked.add(s.getDA());
+										}
+										
+										dataOut.remove(i);
+										i--;
+										size--;
+									}
+									i++;
+								}
+								
+								writer.close();
+								sock.close();
+							}
+							else
+							{
+							//	System.out.println("Node " + address + " is sleeping until data can be sent");
+								sleep(500);
+							}
+						}
 					}
 					
 				} catch (IOException e) {
@@ -180,14 +233,31 @@ public class Node {
 					System.err.println("ERROR: There is a port conflict with Node " + address + " while writing");
 					System.exit(-1);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				
+				System.out.println("Node send is returning");
+
 				return;
+			}
+
+			private boolean canSend()
+			{
+				Frame s = null;
+				for(int i = 0; i < dataOut.size(); i++)
+				{
+					s = dataOut.get(i);
+					if((!unAcked.contains(s.getDA())) || s.isAck())
+					{
+						return true;
+					}
+				}
+				
+				return false;
 			}
 		};
 		t.start();
+		return;
 	}
 	
 	/**
@@ -200,7 +270,7 @@ public class Node {
 				try {
 					while(receivePort == 0)
 					{
-						System.out.println("Waiting for receivePort to change in " + address);
+					//	System.out.println("Waiting for receivePort to change in " + address);
 						sleep(500);
 					}
 					
@@ -213,7 +283,7 @@ public class Node {
 						client = ss.accept();
 						reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
 						while(!reader.ready()){	//sleep, periodically checking for data
-							System.out.println("Node " + address + " is sleeping in receive");
+						//	System.out.println("Node " + address + " is sleeping in receive");
 							Thread.sleep(500);
 						}
 						
@@ -224,18 +294,27 @@ public class Node {
 							f = new Frame(s);
 							System.out.println("Node " + address + " has received a not-null string " + f.toString());
 
-							if(f.isAck()) {
-								unAcked.remove(f.getSA());
-							}
-							else if(f.toString().equals("terminate")){	//if found terminate
+							if(f.isTerm()){	//if found terminate
 								termFlag = false;
+								dataIn.add(f);
 							}
-							else
+							else if(f.isAck()) {
+								System.out.println("Node " + address + " is removing unack for " + f.getSA());
+								for(int i = 0; i < unAcked.size(); i++)
+								{
+									if(unAcked.get(i) == f.getSA())
+									{
+										unAcked.remove(i);
+									}
+								}
+								dataIn.add(f);
+							}
+							
+							else if(address == f.getDA())
 							{
 								dataOut.add(new Frame(address,f.getSA()));
+								dataIn.add(f);
 							}
-			
-							dataIn.add(f);
 						}
 						else
 						{
@@ -245,11 +324,9 @@ public class Node {
 						reader.close();	//close reader
 						client.close();
 					}
-					
+										
 					ss.close();
-					
-					printData();
-					
+
 				} catch (IOException e) {
 					e.printStackTrace();
 					System.err.println("ERROR: There is a port conflict with Node " + address + " while reading");
@@ -257,11 +334,15 @@ public class Node {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				
-			return;
+			
+				System.out.println("Node receive is returning");
+
+				printData();
+				return;
 			}
 		};
 		t.start();
+		return;
 	}
 }
 	
