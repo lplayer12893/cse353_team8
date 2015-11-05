@@ -1,3 +1,5 @@
+import java.util.Random;
+
 /**
  * A frame to be sent in an STPLP MAC protocol simulator
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
@@ -13,13 +15,14 @@ public class Frame {
     private final Integer DA;
     private final Integer SIZE;
     private final String Data;
+    private final Boolean prioritized;
     
-    public Frame(){
-        this(0,0,0,"");
+    public Frame(){	// creates a termination notification
+        this(0,0,0,"",false);
     }
     
     public Frame(Integer sa, Integer da){	// creates an acknowledgment
-        this(sa,da,0,"");
+        this(sa,da,0,"",false);
     }
     
     /**
@@ -33,11 +36,20 @@ public class Frame {
 
         String s = frame.substring(24,24 + SIZE * 8);    
         char[] tmp = new char[SIZE];
-        for(int i = 0; i < s.length(); i += 8){
+        int i = 0;
+        for(; i < s.length(); i += 8){
             tmp[i/8] = (char)Integer.parseInt(s.substring(i,i+8),2);
         }
         
         Data = String.valueOf(tmp);
+        if(frame.charAt(frame.length() - 1) == '1')
+        {
+        	prioritized = true;
+        }
+        else
+        {
+        	prioritized = false;
+        }
     }
     
     /**
@@ -47,10 +59,16 @@ public class Frame {
     public Frame(Integer sa, String init){
     	
     	SA = sa;
-    	String [] s = init.split(":");
+    	String [] s = init.split(":",2);
+    	if(s.length != 2)
+    	{
+    		System.err.println("Node " + sa + " has a frame issue, length " + s.length);
+    	}
     	DA = Integer.parseInt(s[0]);
     	Data = s[1];
     	SIZE = Data.length();
+    	Random r = new Random();
+    	prioritized = r.nextBoolean();
     }
     
     /**
@@ -59,7 +77,7 @@ public class Frame {
      * @param sIZE
      * @param data
      */
-    public Frame(int sA, int dA, int sIZE, String data) {
+    public Frame(int sA, int dA, int sIZE, String data, Boolean prty) {
         
         // If the size byte does not match the length of the data, populate the frame erroneously
         
@@ -67,6 +85,7 @@ public class Frame {
         DA = dA;
         SIZE = sIZE;
         Data = data;
+        prioritized = prty;
     }
 
     /**
@@ -97,7 +116,11 @@ public class Frame {
         return Data;
     }
     
-    /**
+    public Boolean isPrioritized() {
+		return prioritized;
+	}
+
+	/**
      * Combines each field of the Frame into one binary String
      * @return binary String
      */
@@ -110,6 +133,15 @@ public class Frame {
         for(int i = 0; i < SIZE; i++){
             n = Integer.valueOf(Data.charAt(i));
             s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
+        }
+        
+        if(prioritized)
+        {
+        	s = s + "1";
+		}
+        else
+        {
+        	s = s + "0";
         }
         
         return s; 
@@ -150,6 +182,13 @@ public class Frame {
             return "SA: " + SA + ", DA: " + DA + " ACK";
     	}
 
-        return "SA: " + SA + ", DA: " + DA + "," + SIZE + "," + Data;
+        if(prioritized)
+        {
+        	return "SA: " + SA + ", DA: " + DA + "," + SIZE + "," + Data + " (prioritized)";
+        }
+        else
+        {
+        	return "SA: " + SA + ", DA: " + DA + "," + SIZE + "," + Data;
+        }
     }
 }

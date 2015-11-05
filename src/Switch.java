@@ -9,35 +9,49 @@ import java.net.SocketTimeoutException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Random;
 
-
+/**
+ * Contains the implementation for a switch in a tcp/ip network
+ * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
+ */
 public class Switch {
+	
+	private final int numNodes;
 	
 	ServerSocket listener;	// listens for and accepts new clients
 	
 	ArrayList<Integer> receivePorts;
 	ArrayList<Integer> sendPorts;
-	ArrayList<Boolean> terminated;
+	ArrayList<Integer> usedPorts;
+	int terminated;
 	
 	boolean termflag;	// used to synchronize termination of the network
 	
 	HashMap <Integer, Integer> switchTable;	// key is node number, value is index in clientList
 	
 	ArrayDeque<Frame> buffer;	// buffer of frames, FIFO
+	ArrayDeque<Frame> prtyBuffer;	// buffer of prioritized frames, FIFO
 
-	Switch() {
+	Switch(int num) {
 		
+		numNodes = num;
 		// Initialize listener server socket
-		try {
-			listener = new ServerSocket(49152);
-		} catch (IOException e) {
-			System.err.println("Listener server socket failed to initialize");
-			e.printStackTrace();
+		while(true)
+		{
+			try {
+				listener = new ServerSocket(65535);
+				break;
+			} catch (IOException e) {
+				System.err.println("Listener server socket failed to initialize");
+				continue;
+			}
 		}
 		
 		receivePorts = new ArrayList<Integer>();
 		sendPorts = new ArrayList<Integer>();
-		terminated = new ArrayList<Boolean>();
+		usedPorts = new ArrayList<Integer>();
+		terminated = 0;
 		
 		// Initialize termination flag
 		termflag = true;
@@ -47,6 +61,7 @@ public class Switch {
 		
 		// Initialize frame buffer
 		buffer = new ArrayDeque<Frame>();
+		prtyBuffer = new ArrayDeque<Frame>();
 		
 		/**
 		 * Handles accepting connections, reassigning the connections, and closing connections on termination
@@ -55,8 +70,8 @@ public class Switch {
 			public void run(){
 
 				int startingPort = 49153;
-				int i = 0;
 				BufferedWriter writer = null;
+				
 				Socket client;
 				
 				while(termflag)
@@ -65,25 +80,54 @@ public class Switch {
 					try {
 						listener.setSoTimeout(5000);
 						client = listener.accept();	//accept connection
-						
-						receiveData(startingPort + i);	//set up new receiver for reassigned connection
-						
+												
 						writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
 						
-						//serverList.add(new ServerSocket(startingPort + i));	//open new connection to which the client will be reassigned
+						for(; startingPort < 65535; startingPort++)
+						{
+							try {
+								ServerSocket tmp = new ServerSocket(startingPort);
+								tmp.close();
+								if(usedPorts.contains(startingPort))
+								{
+									throw new IOException();
+								}
+								usedPorts.add(startingPort);
+								receivePorts.add(startingPort);
+								break;
+							} catch (IOException e) {
+								continue;
+							}
+						}
 						
-						writer.write(Integer.toString(startingPort + i) + "\n");	//reassign the client
-						writer.write(Integer.toString(startingPort + i + 256));
-						
-						receivePorts.add(startingPort + i);
-						sendPorts.add(startingPort + i + 256);
-						terminated.add(false);
+						receiveData(startingPort);	//set up new receiver for reassigned connection
+
+						writer.write(Integer.toString(startingPort) + "\n");	//reassign the client
+
+						startingPort++;
+						for(; startingPort < 65536; startingPort ++)
+						{
+							try {
+								ServerSocket tmp = new ServerSocket(startingPort);
+								tmp.close();
+								if(usedPorts.contains(startingPort))
+								{
+									throw new IOException();
+								}
+								usedPorts.add(startingPort);
+								sendPorts.add(startingPort);
+								break;
+							} catch (IOException e) {
+								continue;
+							}
+						}
+						writer.write(Integer.toString(startingPort) + "\n");
+
+						startingPort++;
 						
 						writer.close();
 						client.close();
-						
-						i++;
-						
+												
 					} catch (SocketTimeoutException e) {
 						
 					} catch (IOException e) {
@@ -117,41 +161,125 @@ public class Switch {
 					Socket s = null;
 					BufferedWriter writer = null;
 					Frame f = null;
+					ArrayList<Integer> badIndices = new ArrayList<Integer>();
 					while(termflag)
 					{
-						if(!buffer.isEmpty())
+						badIndices.clear();
+						f = null;
+						if(!prtyBuffer.isEmpty() || !buffer.isEmpty())
 						{
-							System.out.println("Switch buffer is not empty");
+							if(!prtyBuffer.isEmpty())
+							{
+								f = prtyBuffer.pop();
+							}
+							else
+							{
+								f = buffer.pop();
+							}
 							
-							//search buffer for priority, if found pop it instead
-							
-							f = buffer.pop();
 							if(!switchTable.containsKey(f.getDA()))
 							{
 								// Flood to all clients except the source
-								System.out.println("Switch is flooding frame '" + f.toString() + "'");
 								for(int i = 0; i < sendPorts.size(); i++)
 								{
 									if(i != switchTable.get(f.getSA()))
 									{
-										s = new Socket((String)null, sendPorts.get(i));
-										writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
-										writer.write(f.toBinFrame());
-										
-										writer.close();
-										s.close();
+										try {
+											s = new Socket((String)null, sendPorts.get(i));
+											writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+											writer.write(f.toBinFrame());
+											
+											writer.close();
+											s.close();
+										} catch(IOException e) {
+											badIndices.add(i);
+										}
+									}
+								}
+								if(!badIndices.isEmpty())
+								{
+									Random r = new Random();
+									long sleep = r.nextInt(100);
+									int i = 1;
+									while(badIndices.size() > 0)
+									{
+										for(int j = 0; j < badIndices.size(); j++)
+										{
+											if(badIndices.get(j) != switchTable.get(f.getSA()))
+											{
+												try {
+													s = new Socket((String)null, sendPorts.get(badIndices.get(j)));
+													writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+													writer.write(f.toBinFrame());
+													
+													writer.close();
+													s.close();
+													
+													badIndices.remove(j);
+													
+												} catch(IOException ex) {
+													try {
+														if(i > 2)
+														{
+															sleep(sleep);
+														}
+														else
+														{
+															sleep((long)Math.pow(sleep, i));
+															i++;
+														}
+													} catch (InterruptedException e1) {
+														e1.printStackTrace();
+														System.exit(-1);
+													}
+												}
+											}
+										}
 									}
 								}
 							}
 							else
 							{
-								System.out.println("Switch is sending frame '" + f.toString() + "' to port " + sendPorts.get(switchTable.get(f.getDA())));
-								s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
-								writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
-								writer.write(f.toBinFrame());
+								try {
+									s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
+									writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+									writer.write(f.toBinFrame());
+									
+									writer.close();
+									s.close();
+								} catch(IOException e) {
+									Random r = new Random();
+									long sleep = r.nextInt(100);
+									int i = 1;
+									
+									while(true)
+									{
+										try {
+											s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
+											writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+											writer.write(f.toBinFrame());
+											
+											writer.close();
+											s.close();
+										} catch(IOException ex) {
+											try {
+												if(i > 2)
+												{
+													sleep(sleep);
+												}
+												else
+												{
+													sleep((long)Math.pow(sleep, i));
+													i++;
+												}
+											} catch (InterruptedException e1) {
+												e1.printStackTrace();
+												System.exit(-1);
+											}
+										}
+									}
+								}
 								
-								writer.close();
-								s.close();
 							}
 						}
 						sleep(500);
@@ -168,12 +296,11 @@ public class Switch {
 					}
 										
 				} catch (IOException e) {
-					System.err.println("ERROR: There is a port conflict");
+					System.err.println("ERROR: There is a port conflict in switch send");
 					System.exit(-1);
-					return;
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
+					System.exit(-1);
 				}
 				System.out.println("Switch send is returning");
 				return;
@@ -196,11 +323,14 @@ public class Switch {
 					ServerSocket listen = new ServerSocket(recPort);
 					Socket c = null;
 					BufferedReader reader = null;
-					boolean term = false;
 					while(termflag)
 					{
-						listen.setSoTimeout(5000);
-						c = listen.accept();
+						try {
+							listen.setSoTimeout(10000);
+							c = listen.accept();
+						} catch (SocketTimeoutException e) {
+							continue;
+						}
 						reader = new BufferedReader(new InputStreamReader(c.getInputStream()));
 							
 						if(reader != null)
@@ -218,20 +348,33 @@ public class Switch {
 								
 								if(f.isTerm())
 								{
-									terminated.set(receivePorts.indexOf(recPort), true);
+									terminated++;
+									System.out.println("terminated = " + terminated);
+									if(terminated == numNodes)
+									{
+										System.out.println("termflag is set to false");
+										termflag = false;
+										listen.close();
+										System.out.println("Switch receive is returning");
+										return;
+									}
 								}
 								else
-								{
-									System.out.println("Switch received message " + f.toString());
-									
+								{									
 									if(!switchTable.containsKey(f.getSA()))
 									{
 									//	System.out.println("Switch key: " + f.getSA() + " value: " + receivePorts.indexOf(recPort));
 										switchTable.put(f.getSA(), receivePorts.indexOf(recPort));
 									}
 									
-									System.out.println("Adding '" + f.toString() + "' to buffer");
-									buffer.addLast(f);
+									if(f.isPrioritized())
+									{
+										prtyBuffer.addLast(f);
+									}
+									else
+									{
+										buffer.addLast(f);
+									}
 								}
 							}
 						}
@@ -240,31 +383,17 @@ public class Switch {
 						reader = null;
 						c = null;
 						
-						term = true;
-						for(Boolean b : terminated)
-						{
-							if(!b)
-							{
-								term = false;
-							}
-						}
-						if(term)
-						{
-							termflag = false;
-						}
 					}
-					listen.close();
-					
-				} catch (SocketTimeoutException e) {
+
 					
 				} catch (IOException e) {
-					System.err.println("ERROR: There is a port conflict");
+					System.err.println("ERROR: There is a port conflict in switch receive, port " + recPort);
+					e.printStackTrace();
 					System.exit(-1);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
+					System.exit(-1);
 				}
-				System.out.println("Switch receive is returning");
 
 				return;
 			}

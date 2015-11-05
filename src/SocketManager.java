@@ -2,7 +2,7 @@ import java.util.ArrayList;
 
 /**
  * Sends data between nodes through a socket connection
- * @author Lucas Stuyvesant
+ * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
  */
 public class SocketManager {
 	
@@ -11,12 +11,26 @@ public class SocketManager {
 	 */
 	public static void main(String[] args) {
 		
-		for(int i = 1; i < 4; i++)
+		if(args.length != 1)
+		{
+			System.err.println("requires 1 argument [number of nodes]");
+			return;
+		}
+		
+		int numNodes = Integer.parseInt(args[0]) + 1;
+		
+		if(numNodes < 3 || numNodes > 256)
+		{
+			System.err.println("number of nodes must be between 2 and 255 inclusive");
+			return;
+		}
+		
+		for(int i = 1; i < numNodes; i++)
 		{
 			new Node(i, new ArrayList<Frame>(), new ArrayList<Frame>());
 		}
 		
-		new Switch();
+		new Switch(numNodes - 1);
 		System.out.println("Main thread termination");
 	}
 }

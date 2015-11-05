@@ -1,4 +1,0 @@
-3:node 1 to node 3
-2:node 1 to node 2
-3:noode 1 to node 3 again
-2:node 1 to the ever popular node 2

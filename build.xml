@@ -3,12 +3,12 @@
               Any modifications will be overwritten.
               To include a user specific buildfile here, simply create one in the same
               directory with the processing instruction <?eclipse.ant.import?>
-              as the first entry and export the buildfile again. --><project basedir="." default="build" name="cse353_Lucas_Stuyvesant_p1">
+              as the first entry and export the buildfile again. --><project basedir="." default="build" name="cse353_team8">
     <property environment="env"/>
     <property name="debuglevel" value="source,lines,vars"/>
     <property name="target" value="1.6"/>
     <property name="source" value="1.6"/>
-    <path id="cse353_Lucas_Stuyvesant_p1.classpath">
+    <path id="cse353_team8.classpath">
         <pathelement location="bin"/>
     </path>
     <target name="init">
@@ -29,12 +29,12 @@
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="bin" includeantruntime="false" source="${source}" target="${target}">
             <src path="src"/>
-            <classpath refid="cse353_Lucas_Stuyvesant_p1.classpath"/>
+            <classpath refid="cse353_team8.classpath"/>
         </javac>
     </target>
     
     <target depends="clean,build" name="build-jar">
-       <jar destfile="cse353_Lucas_Stuyvesant_p1.jar"
+       <jar destfile="cse353_team8_p2.jar"
           basedir="bin">
 
           <manifest>

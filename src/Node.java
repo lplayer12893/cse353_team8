@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.Random;
 
 /**
  * Contains flags and functions to control server and client sockets
@@ -60,22 +61,40 @@ public class Node {
 				
 				BufferedReader rdr = null;
 				Socket sock = null;
+				int i = 1;
+				Random r = new Random();
+				long sleep = r.nextInt(100);
 				
-				try {
-					sock = new Socket((String)null, 49152);	//connect to switch
-				} catch (UnknownHostException e) {
-					System.err.println("Host port does not exist");
-					e.printStackTrace();
-				} catch (IOException e) {
-					System.err.println("Could not connect to host port");
-					e.printStackTrace();
+				while(true)
+				{
+					try {
+						sock = new Socket((String)null, 65535);	//connect to switch
+						break;
+					} catch (UnknownHostException e) {
+						System.err.println("Host port does not exist");
+						e.printStackTrace();
+					} catch (IOException e) {
+						try {
+							if(i > 2)
+							{
+								sleep(sleep);
+							}
+							else
+							{
+								sleep((long)Math.pow(sleep, i));
+								i++;
+							}
+						} catch (InterruptedException e1) {
+							e1.printStackTrace();
+						}
+					}
 				}
+				
 				
 				try {
 					rdr = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
 					while(!rdr.ready())	//read new port number from socket
 					{
-						System.out.println("Node " + address + " is sleeping, waiting to be reassigned");
 
 						Thread.sleep(500);
 					}
@@ -84,25 +103,21 @@ public class Node {
 					
 					while(!rdr.ready())	//read new port number from socket
 					{
-					//	System.out.println("Node " + address + " is sleeping, waiting to be reassigned");
 
 						Thread.sleep(500);
 					}
 					receivePort = Integer.valueOf(rdr.readLine());
-					
-					System.out.println("Node " + address + " recPort: " + receivePort + " sendPort: " + sendPort);
-					
+										
 					rdr.close();
 					sock.close();	//close old socket
 										
 				} catch (IOException e) {
-					// TODO Auto-generated catch block stub
 					e.printStackTrace();
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
 					
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}				
+				
 				sendData();
 				recieveData();
 				return;
@@ -170,8 +185,9 @@ public class Node {
 									
 									s = new Frame();
 											
-									System.out.println("Node " + address + " is sending termination");
-											
+									//System.out.println("Node " + address + " is sending termination");
+									System.out.println(address);
+	
 									writer.write(s.toBinFrame());
 									writer.newLine();
 									
@@ -189,32 +205,64 @@ public class Node {
 								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
 								int size = dataOut.size();
 								int i = 0;
+								int prtyCount = 0;
 								
+								for(Frame prty : dataOut)
+								{
+									if(prty.isPrioritized())
+									{
+										prtyCount++;
+									}
+								}
 								while(true)
 								{
 									if(i >= size)
 									{
 										break;
 									}
+									
 									s = dataOut.get(i);
 									
-									if((!unAcked.contains(s.getDA())) || s.isAck()) {
-										
-										System.out.println("Node " + address + " is sending " + s.toString());
-										
-										writer.write(s.toBinFrame());
-										writer.newLine();
-										
-										if(!s.isAck())
+									if(prtyCount > 0)
+									{
+										if(s.isPrioritized())
 										{
-											unAcked.add(s.getDA());
+											prtyCount--;
+											if((!unAcked.contains(s.getDA())) || s.isAck()) {
+																								
+												writer.write(s.toBinFrame());
+												writer.newLine();
+												
+												if(!s.isAck())
+												{
+													unAcked.add(s.getDA());
+												}
+												
+												dataOut.remove(i);
+												i--;
+												size--;
+											}
 										}
-										
-										dataOut.remove(i);
-										i--;
-										size--;
+										i++;
 									}
-									i++;
+									else
+									{
+										if((!unAcked.contains(s.getDA())) || s.isAck()) {
+																						
+											writer.write(s.toBinFrame());
+											writer.newLine();
+											
+											if(!s.isAck())
+											{
+												unAcked.add(s.getDA());
+											}
+											
+											dataOut.remove(i);
+											i--;
+											size--;
+										}
+										i++;
+									}
 								}
 								
 								writer.close();
@@ -276,7 +324,20 @@ public class Node {
 					
 					String s = null;
 					Socket client = null;
-					ServerSocket ss = new ServerSocket(receivePort);
+					
+					ServerSocket ss;
+					while(true)
+					{
+						try {
+							ss = new ServerSocket(receivePort);
+							System.out.println("Node " + address + " can receive");
+							break;
+						} catch(BindException e) {
+							sleep(500);
+							continue;
+						}
+					}
+					
 					BufferedReader reader = null;
 					Frame f = null;
 					while(termFlag) {
@@ -292,14 +353,12 @@ public class Node {
 						if(s != null){
 
 							f = new Frame(s);
-							System.out.println("Node " + address + " has received a not-null string " + f.toString());
 
 							if(f.isTerm()){	//if found terminate
 								termFlag = false;
 								dataIn.add(f);
 							}
 							else if(f.isAck()) {
-								System.out.println("Node " + address + " is removing unack for " + f.getSA());
 								for(int i = 0; i < unAcked.size(); i++)
 								{
 									if(unAcked.get(i) == f.getSA())
@@ -318,7 +377,7 @@ public class Node {
 						}
 						else
 						{
-							System.out.println("string read from client is null in Node " + address);
+							System.err.println("string read from client is null in Node " + address);
 						}
 						
 						reader.close();	//close reader
