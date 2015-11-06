@@ -49,7 +49,7 @@ public class Node {
 			while((s = in.readLine()) != null)
 			{
 				f = new Frame(address,s);	//create frames from data
-				dataOut.add(f);		//store frames to data buffer
+				dataOut.add(f);		
 			}
 		} catch (IOException e) {
 			System.err.println("Unable to read from file" + e.getMessage());
@@ -93,20 +93,20 @@ public class Node {
 				
 				try {
 					rdr = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
-					while(!rdr.ready())	//read new port number from socket
+					while(!rdr.ready())
 					{
 
 						Thread.sleep(500);
 					}
 					
-					sendPort = Integer.valueOf(rdr.readLine());
+					sendPort = Integer.valueOf(rdr.readLine());		//read sending port
 					
-					while(!rdr.ready())	//read new port number from socket
+					while(!rdr.ready())
 					{
 
 						Thread.sleep(500);
 					}
-					receivePort = Integer.valueOf(rdr.readLine());
+					receivePort = Integer.valueOf(rdr.readLine());		//read receiving port
 										
 					rdr.close();
 					sock.close();	//close old socket
@@ -140,7 +140,7 @@ public class Node {
 			w = new FileWriter("node" + addr + "output.txt");	//create output files
 			
 			for(Frame s: dataIn){
-				w.write(s.getSA() + ":" + s.getData() + "\n");		//print data read from socket
+				w.write(s.getSA() + ":" + s.getData() + "\n");	//print data read from socket
 			}
 			
 			w.close();
@@ -164,7 +164,6 @@ public class Node {
 				try {
 					while(sendPort == 0)
 					{
-					//	System.out.println("Waiting for sendPort to change in " + address);
 						sleep(500);
 					}
 					Socket sock = null;
@@ -175,9 +174,9 @@ public class Node {
 						
 						if(dataOut.isEmpty())	//if there is no data to write to socket
 						{
-							if(unAcked.isEmpty())
+							if(unAcked.isEmpty())	//if all acknowledgments received
 							{
-								if(!hasTerminated)
+								if(!hasTerminated)	//check for termination frame
 								{
 									hasTerminated = true;
 									sock = new Socket((String) null, sendPort);
@@ -185,13 +184,12 @@ public class Node {
 									
 									s = new Frame();
 											
-									//System.out.println("Node " + address + " is sending termination");
 									System.out.println(address);
 	
-									writer.write(s.toBinFrame());
+									writer.write(s.toBinFrame());	//send termination
 									writer.newLine();
 									
-									writer.close();
+									writer.close();		//close writer and socket
 									sock.close();
 								}
 							}
@@ -199,7 +197,7 @@ public class Node {
 						}
 						else
 						{
-							if(canSend())
+							if(canSend())	//checks if socket can send data
 							{
 								sock = new Socket((String) null, sendPort);
 								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
@@ -209,7 +207,7 @@ public class Node {
 								
 								for(Frame prty : dataOut)
 								{
-									if(prty.isPrioritized())
+									if(prty.isPrioritized())	//check for frame priority
 									{
 										prtyCount++;
 									}
@@ -223,12 +221,12 @@ public class Node {
 									
 									s = dataOut.get(i);
 									
-									if(prtyCount > 0)
+									if(prtyCount > 0)	//check if some frames have priority and send first
 									{
 										if(s.isPrioritized())
 										{
 											prtyCount--;
-											if((!unAcked.contains(s.getDA())) || s.isAck()) {
+											if((!unAcked.contains(s.getDA())) || s.isAck()) {	//if priority, send the data
 																								
 												writer.write(s.toBinFrame());
 												writer.newLine();
@@ -247,7 +245,7 @@ public class Node {
 									}
 									else
 									{
-										if((!unAcked.contains(s.getDA())) || s.isAck()) {
+										if((!unAcked.contains(s.getDA())) || s.isAck()) {	//Send all other frames after
 																						
 											writer.write(s.toBinFrame());
 											writer.newLine();
@@ -268,9 +266,8 @@ public class Node {
 								writer.close();
 								sock.close();
 							}
-							else
+							else	//if socket can't send, than wait until it can
 							{
-							//	System.out.println("Node " + address + " is sleeping until data can be sent");
 								sleep(500);
 							}
 						}
@@ -288,7 +285,10 @@ public class Node {
 
 				return;
 			}
-
+			
+			/*
+			 * Checks if destination is available (ACK) and data can be sent
+			 */
 			private boolean canSend()
 			{
 				Frame s = null;
@@ -318,7 +318,6 @@ public class Node {
 				try {
 					while(receivePort == 0)
 					{
-					//	System.out.println("Waiting for receivePort to change in " + address);
 						sleep(500);
 					}
 					
@@ -326,13 +325,13 @@ public class Node {
 					Socket client = null;
 					
 					ServerSocket ss;
-					while(true)
+					while(true)	//Keep trying port until a connection is established
 					{
 						try {
-							ss = new ServerSocket(receivePort);
+							ss = new ServerSocket(receivePort);		//Try to connect to port
 							System.out.println("Node " + address + " can receive");
 							break;
-						} catch(BindException e) {
+						} catch(BindException e) {		//If no connection is established wait
 							sleep(500);
 							continue;
 						}
@@ -341,10 +340,11 @@ public class Node {
 					BufferedReader reader = null;
 					Frame f = null;
 					while(termFlag) {
-						client = ss.accept();
+						
+						client = ss.accept();	//start a client to receive data
 						reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
+						
 						while(!reader.ready()){	//sleep, periodically checking for data
-						//	System.out.println("Node " + address + " is sleeping in receive");
 							Thread.sleep(500);
 						}
 						
@@ -354,11 +354,11 @@ public class Node {
 
 							f = new Frame(s);
 
-							if(f.isTerm()){	//if found terminate
+							if(f.isTerm()){		//if terminate frame found
 								termFlag = false;
 								dataIn.add(f);
 							}
-							else if(f.isAck()) {
+							else if(f.isAck()) {	//if ACK frame found
 								for(int i = 0; i < unAcked.size(); i++)
 								{
 									if(unAcked.get(i) == f.getSA())
@@ -369,7 +369,7 @@ public class Node {
 								dataIn.add(f);
 							}
 							
-							else if(address == f.getDA())
+							else if(address == f.getDA())	//Data frame found
 							{
 								dataOut.add(new Frame(address,f.getSA()));
 								dataIn.add(f);
@@ -384,11 +384,11 @@ public class Node {
 						client.close();
 					}
 										
-					ss.close();
+					ss.close();	//close server socket
 
 				} catch (IOException e) {
-					e.printStackTrace();
 					System.err.println("ERROR: There is a port conflict with Node " + address + " while reading");
+					e.printStackTrace();
 					System.exit(-1);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
@@ -396,7 +396,7 @@ public class Node {
 			
 				System.out.println("Node receive is returning");
 
-				printData();
+				printData();	//write output files after node finishes reading and writing
 				return;
 			}
 		};
