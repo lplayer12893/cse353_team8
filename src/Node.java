@@ -48,8 +48,8 @@ public class Node {
 			
 			while((s = in.readLine()) != null)
 			{
-				f = new Frame(address,s);
-				dataOut.add(f);
+				f = new Frame(address,s);	//create frames from data
+				dataOut.add(f);		//store frames to data buffer
 			}
 		} catch (IOException e) {
 			System.err.println("Unable to read from file" + e.getMessage());
@@ -77,11 +77,11 @@ public class Node {
 						try {
 							if(i > 2)
 							{
-								sleep(sleep);
+								sleep(sleep);	//wait for socket to connect to switch
 							}
 							else
 							{
-								sleep((long)Math.pow(sleep, i));
+								sleep((long)Math.pow(sleep, i));	//exponential back off
 								i++;
 							}
 						} catch (InterruptedException e1) {
@@ -137,10 +137,10 @@ public class Node {
 		System.out.println("Node " + address + " is trying to print");
 		
 		try {
-			w = new FileWriter("node" + addr + "output.txt");
+			w = new FileWriter("node" + addr + "output.txt");	//create output files
 			
 			for(Frame s: dataIn){
-				w.write(s.getSA() + ":" + s.getData() + "\n");
+				w.write(s.getSA() + ":" + s.getData() + "\n");		//print data read from socket
 			}
 			
 			w.close();
