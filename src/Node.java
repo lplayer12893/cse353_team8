@@ -30,7 +30,8 @@ public class Node {
 	
 	
 	public Node(Integer i, ArrayList<Frame> di, ArrayList<Frame> dt){
-		
+
+		// init fields
 		address = i;
 		termFlag = true;
 		unAcked = new ArrayList<Integer>();
@@ -43,7 +44,7 @@ public class Node {
 		String s = null;
 		Frame f;
 		
-		try {
+		try {	//read input file
 			in = new BufferedReader(new FileReader("node"+i+".txt"));
 			
 			while((s = in.readLine()) != null)
@@ -56,16 +57,16 @@ public class Node {
 			e.printStackTrace();
 		}
 			
-		Thread chatter = new Thread() {
+		Thread chatter = new Thread() {	//thread for beginning chat
 			public void run() {
 				
 				BufferedReader rdr = null;
 				Socket sock = null;
 				int i = 1;
-				Random r = new Random();
+				Random r = new Random();	//exponential backoff
 				long sleep = r.nextInt(100);
 				
-				while(true)
+				while(true)	//until successful, connect to the switch's listening port
 				{
 					try {
 						sock = new Socket((String)null, 65535);	//connect to switch
@@ -91,7 +92,7 @@ public class Node {
 				}
 				
 				
-				try {
+				try {	//get port assignments
 					rdr = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
 					while(!rdr.ready())
 					{
@@ -107,19 +108,19 @@ public class Node {
 						Thread.sleep(500);
 					}
 					receivePort = Integer.valueOf(rdr.readLine());		//read receiving port
-										
+
 					rdr.close();
 					sock.close();	//close old socket
-										
+
 				} catch (IOException e) {
 					e.printStackTrace();
-					
+
 				} catch (InterruptedException e) {
 					e.printStackTrace();
-				}				
+				}
 				
-				sendData();
-				recieveData();
+				sendData();	//begin send data (threaded)
+				recieveData();	//begin receive data (threaded)
 				return;
 			}
 		};
@@ -162,7 +163,7 @@ public class Node {
 		Thread t = new Thread() {
 			public void run() {
 				try {
-					while(sendPort == 0)
+					while(sendPort == 0)	//wait for port reassignment to finish
 					{
 						sleep(500);
 					}
@@ -171,7 +172,7 @@ public class Node {
 					Frame s = null;
 					boolean hasTerminated = false;
 					while(termFlag) {
-						
+
 						if(dataOut.isEmpty())	//if there is no data to write to socket
 						{
 							if(unAcked.isEmpty())	//if all acknowledgments received
@@ -181,14 +182,14 @@ public class Node {
 									hasTerminated = true;
 									sock = new Socket((String) null, sendPort);
 									writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
-									
+
 									s = new Frame();
-											
+
 									System.out.println(address);
-	
+
 									writer.write(s.toBinFrame());	//send termination
 									writer.newLine();
-									
+
 									writer.close();		//close writer and socket
 									sock.close();
 								}
@@ -204,7 +205,7 @@ public class Node {
 								int size = dataOut.size();
 								int i = 0;
 								int prtyCount = 0;
-								
+
 								for(Frame prty : dataOut)
 								{
 									if(prty.isPrioritized())	//check for frame priority
@@ -218,24 +219,24 @@ public class Node {
 									{
 										break;
 									}
-									
+
 									s = dataOut.get(i);
-									
+
 									if(prtyCount > 0)	//check if some frames have priority and send first
 									{
 										if(s.isPrioritized())
 										{
 											prtyCount--;
 											if((!unAcked.contains(s.getDA())) || s.isAck()) {	//if priority, send the data
-																								
+
 												writer.write(s.toBinFrame());
 												writer.newLine();
-												
+
 												if(!s.isAck())
 												{
 													unAcked.add(s.getDA());
 												}
-												
+
 												dataOut.remove(i);
 												i--;
 												size--;
@@ -246,15 +247,15 @@ public class Node {
 									else
 									{
 										if((!unAcked.contains(s.getDA())) || s.isAck()) {	//Send all other frames after
-																						
+
 											writer.write(s.toBinFrame());
 											writer.newLine();
-											
+
 											if(!s.isAck())
 											{
 												unAcked.add(s.getDA());
 											}
-											
+
 											dataOut.remove(i);
 											i--;
 											size--;
@@ -262,7 +263,7 @@ public class Node {
 										i++;
 									}
 								}
-								
+
 								writer.close();
 								sock.close();
 							}
@@ -272,7 +273,7 @@ public class Node {
 							}
 						}
 					}
-					
+
 				} catch (IOException e) {
 					e.printStackTrace();
 					System.err.println("ERROR: There is a port conflict with Node " + address + " while writing");
@@ -280,12 +281,12 @@ public class Node {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				
+
 				System.out.println("Node send is returning");
 
 				return;
 			}
-			
+
 			/*
 			 * Checks if destination is available (ACK) and data can be sent
 			 */
@@ -383,7 +384,7 @@ public class Node {
 						reader.close();	//close reader
 						client.close();
 					}
-										
+
 					ss.close();	//close server socket
 
 				} catch (IOException e) {

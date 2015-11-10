@@ -1,0 +1,22 @@
+Switch
+    Error Handling
+    
+Frame
+    check sum
+    Token and NoACK frames
+    multiple frame formats (ring and switch)
+    % error chance at FRAME CREATION
+    sync/async traffic field
+    
+Node
+    connect to both switch and hub
+    new fields: switchStatus and ringStatus (Enum: WAITING, CONNECTED, DISCONNECTED, ERROR?)
+    dataOut: don't remove till Ack
+    Ring: frame forwarding
+    
+RingHub
+    = switch - learning - flooding + iterative messaging
+    timer for token = 2 * time_per_send * number_of_nodes + buffer_time
+    Monitor functionality
+        drain/reissue token
+        drain erroneous frame

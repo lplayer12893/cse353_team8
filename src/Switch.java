@@ -36,7 +36,7 @@ public class Switch {
 	Switch(int num) {
 		
 		numNodes = num;
-		// Initialize listener server socket
+		// Initialize listener server socket. REQUIRES PORT 65535 BE OPEN
 		while(true)
 		{
 			try {
@@ -66,7 +66,7 @@ public class Switch {
 		/**
 		 * Handles accepting connections, reassigning the connections, and closing connections on termination
 		 */
-		Thread a = new Thread(){	
+		Thread a = new Thread(){	// begin listener thread, reassigns nodes to open ports
 			public void run(){
 
 				int startingPort = 49153;
@@ -80,10 +80,10 @@ public class Switch {
 					try {
 						listener.setSoTimeout(5000);
 						client = listener.accept();	//accept connection
-												
+
 						writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
 						
-						for(; startingPort < 65535; startingPort++)
+						for(; startingPort < 65535; startingPort++)	// iterates until a free port is found
 						{
 							try {
 								ServerSocket tmp = new ServerSocket(startingPort);
@@ -105,7 +105,7 @@ public class Switch {
 						writer.write(Integer.toString(startingPort) + "\n");	//reassign the client
 
 						startingPort++;
-						for(; startingPort < 65536; startingPort ++)
+						for(; startingPort < 65536; startingPort ++)	//iterates until a second free port is found
 						{
 							try {
 								ServerSocket tmp = new ServerSocket(startingPort);
@@ -127,7 +127,7 @@ public class Switch {
 						
 						writer.close();
 						client.close();
-												
+
 					} catch (SocketTimeoutException e) {
 						
 					} catch (IOException e) {
@@ -162,11 +162,11 @@ public class Switch {
 					BufferedWriter writer = null;
 					Frame f = null;
 					ArrayList<Integer> badIndices = new ArrayList<Integer>();
-					while(termflag)
+					while(termflag)	// until time to terminate
 					{
 						badIndices.clear();
 						f = null;
-						if(!prtyBuffer.isEmpty() || !buffer.isEmpty())
+						if(!prtyBuffer.isEmpty() || !buffer.isEmpty())	// if there is data to be sent
 						{
 							if(!prtyBuffer.isEmpty())
 							{
@@ -177,7 +177,7 @@ public class Switch {
 								f = buffer.pop();
 							}
 							
-							if(!switchTable.containsKey(f.getDA()))
+							if(!switchTable.containsKey(f.getDA()))	// if address is not known
 							{
 								// Flood to all clients except the source
 								for(int i = 0; i < sendPorts.size(); i++)
@@ -196,7 +196,7 @@ public class Switch {
 										}
 									}
 								}
-								if(!badIndices.isEmpty())
+								if(!badIndices.isEmpty())	// if a send fails, retry until it succeeds
 								{
 									Random r = new Random();
 									long sleep = r.nextInt(100);
@@ -238,7 +238,7 @@ public class Switch {
 									}
 								}
 							}
-							else
+							else	// send to known address
 							{
 								try {
 									s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
@@ -252,7 +252,7 @@ public class Switch {
 									long sleep = r.nextInt(100);
 									int i = 1;
 									
-									while(true)
+									while(true)	// if error sending, retry until successful, exponential backoff
 									{
 										try {
 											s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
@@ -284,7 +284,7 @@ public class Switch {
 						}
 						sleep(500);
 					}
-					Frame term = new Frame();
+					Frame term = new Frame();	// send termination frame to all nodes
 					for(Integer k : sendPorts)
 					{
 						s = new Socket((String)null, k);
@@ -313,6 +313,7 @@ public class Switch {
 	/**
 	 * Reads data from the socket when the "server" accepts a client
 	 * The data is then printed
+	 * @param recPort the port which the switch is receiving upon, one thread per node
 	 */
 	private void receiveData(final Integer recPort){
 		Thread rec = new Thread() {
@@ -323,30 +324,30 @@ public class Switch {
 					ServerSocket listen = new ServerSocket(recPort);
 					Socket c = null;
 					BufferedReader reader = null;
-					while(termflag)
+					while(termflag)	// until time to terminate
 					{
-						try {
+						try {	// wait for connection, periodically checking termination status
 							listen.setSoTimeout(10000);
 							c = listen.accept();
 						} catch (SocketTimeoutException e) {
 							continue;
 						}
 						reader = new BufferedReader(new InputStreamReader(c.getInputStream()));
-							
+
 						if(reader != null)
 						{
-							while(!reader.ready())
+							while(!reader.ready())	//wait until reader is ready
 							{
 							//	System.out.println("Switch waiting for reader to be ready");
-								
+
 								sleep(500);
 							}
-							while(reader.ready())
+							while(reader.ready())	//read all data and process the data
 							{
 								s = reader.readLine();
 								f = new Frame(s);
-								
-								if(f.isTerm())
+
+								if(f.isTerm())	// if is a termination frame, increment count of terminated nodes
 								{
 									terminated++;
 									System.out.println("terminated = " + terminated);
@@ -360,13 +361,13 @@ public class Switch {
 									}
 								}
 								else
-								{									
-									if(!switchTable.containsKey(f.getSA()))
+								{
+									if(!switchTable.containsKey(f.getSA()))	// if address is not known, learn it
 									{
 									//	System.out.println("Switch key: " + f.getSA() + " value: " + receivePorts.indexOf(recPort));
 										switchTable.put(f.getSA(), receivePorts.indexOf(recPort));
 									}
-									
+
 									if(f.isPrioritized())
 									{
 										prtyBuffer.addLast(f);
@@ -382,10 +383,10 @@ public class Switch {
 						c.close();
 						reader = null;
 						c = null;
-						
+
 					}
 
-					
+
 				} catch (IOException e) {
 					System.err.println("ERROR: There is a port conflict in switch receive, port " + recPort);
 					e.printStackTrace();

@@ -25,12 +25,12 @@ public class SocketManager {
 			return;
 		}
 		
-		for(int i = 1; i < numNodes; i++)
+		for(int i = 1; i < numNodes; i++)	// start node processes (threaded part-way through constructor)
 		{
 			new Node(i, new ArrayList<Frame>(), new ArrayList<Frame>());
 		}
 		
-		new Switch(numNodes - 1);
+		new Switch(numNodes - 1);	// start switch processes
 		System.out.println("Main thread termination");
 	}
 }
