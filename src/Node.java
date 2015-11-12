@@ -16,13 +16,17 @@ import java.util.Random;
  */
 public class Node {
 	
-	private Integer address;
 	private boolean termFlag;
+	private boolean switchStatus;
+	private boolean hubStatus;
 	private ArrayList<Integer> unAcked;	//list of unacknowledged destination addresses
 	private ArrayList<Frame> dataIn;	//data read from socket
 	private ArrayList<Frame> dataOut;	//data written to socket
-	private Integer sendPort;
-	private Integer receivePort;
+	private Integer address;
+	private Integer switchSendPort;
+	private Integer hubSendPort;
+	private Integer switchReceivePort;
+	private Integer hubReceivePort;
 
 	public Node(){
 		this(0,null,null);
@@ -32,13 +36,17 @@ public class Node {
 	public Node(Integer i, ArrayList<Frame> di, ArrayList<Frame> dt){
 
 		// init fields
-		address = i;
 		termFlag = true;
+		switchStatus = true;
+		hubStatus = true;
 		unAcked = new ArrayList<Integer>();
 		dataIn = di;
 		dataOut = dt;
-		sendPort = 0;
-		receivePort = 0;
+		address = i;
+		switchSendPort = 0;
+		hubSendPort = 0;
+		switchReceivePort = 0;
+		hubReceivePort = 0;
 		
 		BufferedReader in = null;
 		String s = null;
@@ -61,15 +69,17 @@ public class Node {
 			public void run() {
 				
 				BufferedReader rdr = null;
-				Socket sock = null;
+				Socket switchSock = null;
+				Socket hubSock = null;
 				int i = 1;
 				Random r = new Random();	//exponential backoff
 				long sleep = r.nextInt(100);
 				
-				while(true)	//until successful, connect to the switch's listening port
+				while(true)	//until successful, tries to connect to switch
 				{
 					try {
-						sock = new Socket((String)null, 65535);	//connect to switch
+						switchSock = new Socket((String)null, 65535);	//connect to switch
+						hubSock = new Socket((String)null, 65534);
 						break;
 					} catch (UnknownHostException e) {
 						System.err.println("Host port does not exist");
@@ -91,26 +101,23 @@ public class Node {
 					}
 				}
 				
-				
-				try {	//get port assignments
-					rdr = new BufferedReader(new InputStreamReader(sock.getInputStream()));	//get reader from socket
+				try {	//get switch port assignments
+					rdr = new BufferedReader(new InputStreamReader(switchSock.getInputStream()));	//get reader from socket
 					while(!rdr.ready())
 					{
-
 						Thread.sleep(500);
 					}
 					
-					sendPort = Integer.valueOf(rdr.readLine());		//read sending port
+					switchSendPort = Integer.valueOf(rdr.readLine());		//read sending port
 					
 					while(!rdr.ready())
 					{
-
 						Thread.sleep(500);
 					}
-					receivePort = Integer.valueOf(rdr.readLine());		//read receiving port
+					switchReceivePort = Integer.valueOf(rdr.readLine());		//read receiving port
 
 					rdr.close();
-					sock.close();	//close old socket
+					switchSock.close();	//close old socket
 
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -118,9 +125,37 @@ public class Node {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				
-				sendData();	//begin send data (threaded)
-				recieveData();	//begin receive data (threaded)
+
+				try {	//get hub port assignments
+					rdr = new BufferedReader(new InputStreamReader(hubSock.getInputStream()));	//get reader from socket
+					while(!rdr.ready())
+					{
+						Thread.sleep(500);
+					}
+					
+					hubSendPort = Integer.valueOf(rdr.readLine());		//read sending port
+					
+					while(!rdr.ready())
+					{
+						Thread.sleep(500);
+					}
+					hubReceivePort = Integer.valueOf(rdr.readLine());		//read receiving port
+
+					rdr.close();
+					switchSock.close();	//close old socket
+					hubSock.close();
+
+				} catch (IOException e) {
+					e.printStackTrace();
+
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+
+				sendData(switchSendPort);	//begin send data to switch (threaded)
+				receiveData(switchReceivePort);	//begin receive data from switch (threaded)
+				sendData(hubSendPort);	//begin send data to hub (threaded)
+				receiveData(hubReceivePort);	//begin receive data from hub (threaded)
 				return;
 			}
 		};
@@ -159,7 +194,7 @@ public class Node {
 	/**
 	 * Sends data from dataOut to the socket that accepts it when made
 	 */
-	public void sendData(){
+	public void sendData(Integer sendPort){
 		Thread t = new Thread() {
 			public void run() {
 				try {
@@ -204,15 +239,7 @@ public class Node {
 								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
 								int size = dataOut.size();
 								int i = 0;
-								int prtyCount = 0;
 
-								for(Frame prty : dataOut)
-								{
-									if(prty.isPrioritized())	//check for frame priority
-									{
-										prtyCount++;
-									}
-								}
 								while(true)
 								{
 									if(i >= size)
@@ -222,46 +249,21 @@ public class Node {
 
 									s = dataOut.get(i);
 
-									if(prtyCount > 0)	//check if some frames have priority and send first
-									{
-										if(s.isPrioritized())
+									if((!unAcked.contains(s.getDA())) || s.isAck()) {	//Send all other frames after
+
+										writer.write(s.toBinFrame());
+										writer.newLine();
+
+										if(!s.isAck())
 										{
-											prtyCount--;
-											if((!unAcked.contains(s.getDA())) || s.isAck()) {	//if priority, send the data
-
-												writer.write(s.toBinFrame());
-												writer.newLine();
-
-												if(!s.isAck())
-												{
-													unAcked.add(s.getDA());
-												}
-
-												dataOut.remove(i);
-												i--;
-												size--;
-											}
+											unAcked.add(s.getDA());
 										}
-										i++;
+
+										//dataOut.remove(i);
+										i--;
+										size--;
 									}
-									else
-									{
-										if((!unAcked.contains(s.getDA())) || s.isAck()) {	//Send all other frames after
-
-											writer.write(s.toBinFrame());
-											writer.newLine();
-
-											if(!s.isAck())
-											{
-												unAcked.add(s.getDA());
-											}
-
-											dataOut.remove(i);
-											i--;
-											size--;
-										}
-										i++;
-									}
+									i++;
 								}
 
 								writer.close();
@@ -313,7 +315,7 @@ public class Node {
 	 * Reads data from the socket when the "server" accepts a client
 	 * The data is then printed
 	 */
-	public void recieveData(){
+	public void receiveData(Integer receivePort){
 		Thread t = new Thread() {
 			public void run() {
 				try {
@@ -355,11 +357,13 @@ public class Node {
 
 							f = new Frame(s);
 
-							if(f.isTerm()){		//if terminate frame found
+							if(f.isTerm())	//if terminate frame found
+							{		
 								termFlag = false;
 								dataIn.add(f);
 							}
-							else if(f.isAck()) {	//if ACK frame found
+							else if(f.isAck())	//if ACK frame found
+							{	
 								for(int i = 0; i < unAcked.size(); i++)
 								{
 									if(unAcked.get(i) == f.getSA())
@@ -367,6 +371,7 @@ public class Node {
 										unAcked.remove(i);
 									}
 								}
+								dataOut.remove(0);	//remove data after acknowledgement
 								dataIn.add(f);
 							}
 							
@@ -374,6 +379,10 @@ public class Node {
 							{
 								dataOut.add(new Frame(address,f.getSA()));
 								dataIn.add(f);
+							}
+							else	//forward data back to hub
+							{
+								sendData(hubSendPort);
 							}
 						}
 						else
