@@ -6,15 +6,15 @@ public class Frame {
     
     public enum FrameType{RING,STAR};
 	
-	private final Integer AC;
-	private final Integer FC;
+	private Integer AC;
+	private Integer FC;
     private final Integer SA;
     private final Integer DA;
     private final Integer SIZE;
     private final String Data;
     private Integer CRC;
-    private final Integer FS;
-    private final FrameType frameType;
+    private Integer FS;
+    private FrameType frameType;
     
     private Boolean valid;
     
@@ -280,6 +280,14 @@ public class Frame {
     }
     
     /**
+     * @return frameType
+     */
+    public FrameType getFrameType()
+    {
+    	return frameType;
+    }
+    
+    /**
      * @return true if the frame is valid (non-erroneous), false otherwise
      */
     public boolean isValid()
@@ -293,7 +301,6 @@ public class Frame {
      */
     public String toBinFrame()
     {
-    	
     	if(frameType == FrameType.STAR)
     	{
 	        String s = String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');    //formating and replacing maintains leading 0's
@@ -345,6 +352,45 @@ public class Frame {
         return s;
     }
 
+    /**
+     * @return the frame in star format
+     */
+    public void toStar()
+    {
+    	if(frameType == FrameType.RING)
+    	{
+        	frameType = FrameType.STAR;
+        	AC = null;
+        	FC = null;
+        	FS = null;
+    	}
+    }
+    
+    /**
+     * @return the frame in ring format
+     */
+    public void toRing()
+    {
+    	if(frameType == FrameType.STAR)
+    	{
+    		frameType = FrameType.RING;
+
+			if(isAck())
+			{
+				AC = 0;
+				FC = 0;
+				FS = 192;
+			}
+			//if is unACK?
+			else
+			{
+	        	AC = null;
+	        	FC = null;
+	        	FS = null;
+			}
+    	}
+    }
+    
     /**
      * @return true if the frame is an acknowledgement of frame received, false otherwise
      */
