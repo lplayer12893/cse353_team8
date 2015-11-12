@@ -13,6 +13,11 @@ import java.util.Random;
 /**
  * Contains flags and functions to control server and client sockets
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
+ * @TODO add timeout for star network to error check:
+ * 				if no acknowledgement in within timeout, resend frame.
+ * 		 error handling for ring network
+ * 		 choose network to send on
+ * 		 add sendHubData and receiveHubData
  */
 public class Node {
 	
@@ -22,6 +27,7 @@ public class Node {
 	private ArrayList<Integer> unAcked;	//list of unacknowledged destination addresses
 	private ArrayList<Frame> dataIn;	//data read from socket
 	private ArrayList<Frame> dataOut;	//data written to socket
+	private ArrayList<Frame> forward;	//frames to be forwarded
 	private Integer address;
 	private Integer switchSendPort;
 	private Integer hubSendPort;
@@ -40,6 +46,7 @@ public class Node {
 		switchStatus = true;
 		hubStatus = true;
 		unAcked = new ArrayList<Integer>();
+		forward = new ArrayList<Frame>();
 		dataIn = di;
 		dataOut = dt;
 		address = i;
@@ -151,11 +158,11 @@ public class Node {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-
-				sendData(switchSendPort);	//begin send data to switch (threaded)
-				receiveData(switchReceivePort);	//begin receive data from switch (threaded)
-				sendData(hubSendPort);	//begin send data to hub (threaded)
-				receiveData(hubReceivePort);	//begin receive data from hub (threaded)
+				
+				sendHubData();	//begin send data to switch (threaded)
+				sendSwitchData();
+				receiveHubData();	//begin receive data from switch (threaded)
+				receiveSwitchData();
 				return;
 			}
 		};
@@ -194,14 +201,15 @@ public class Node {
 	/**
 	 * Sends data from dataOut to the socket that accepts it when made
 	 */
-	public void sendData(Integer sendPort){
+	public void sendSwitchData(){
 		Thread t = new Thread() {
 			public void run() {
 				try {
-					while(sendPort == 0)	//wait for port reassignment to finish
+					while(switchSendPort == 0)	//wait for port reassignment to finish
 					{
 						sleep(500);
 					}
+					
 					Socket sock = null;
 					BufferedWriter writer = null;
 					Frame s = null;
@@ -215,11 +223,18 @@ public class Node {
 								if(!hasTerminated)	//check for termination frame
 								{
 									hasTerminated = true;
-									sock = new Socket((String) null, sendPort);
+									sock = new Socket((String) null, switchSendPort);
 									writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
-
-									s = new Frame();
-
+									
+									if(switchSendPort == hubSendPort)
+									{
+										s = new Frame(Frame.FrameType.RING);
+									}
+									else
+									{
+										s = new Frame(Frame.FrameType.STAR);
+									}
+									
 									System.out.println(address);
 
 									writer.write(s.toBinFrame());	//send termination
@@ -235,7 +250,7 @@ public class Node {
 						{
 							if(canSend())	//checks if socket can send data
 							{
-								sock = new Socket((String) null, sendPort);
+								sock = new Socket((String) null, switchSendPort);
 								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
 								int size = dataOut.size();
 								int i = 0;
@@ -311,15 +326,17 @@ public class Node {
 		return;
 	}
 	
+	
+	
 	/**
 	 * Reads data from the socket when the "server" accepts a client
 	 * The data is then printed
 	 */
-	public void receiveData(Integer receivePort){
+	public void receiveSwitchData(){
 		Thread t = new Thread() {
 			public void run() {
 				try {
-					while(receivePort == 0)
+					while(switchReceivePort == 0)
 					{
 						sleep(500);
 					}
@@ -331,7 +348,7 @@ public class Node {
 					while(true)	//Keep trying port until a connection is established
 					{
 						try {
-							ss = new ServerSocket(receivePort);		//Try to connect to port
+							ss = new ServerSocket(switchReceivePort);		//Try to connect to port
 							System.out.println("Node " + address + " can receive");
 							break;
 						} catch(BindException e) {		//If no connection is established wait
@@ -354,35 +371,38 @@ public class Node {
 						s = reader.readLine();
 						
 						if(s != null){
-
-							f = new Frame(s);
-
-							if(f.isTerm())	//if terminate frame found
-							{		
-								termFlag = false;
-								dataIn.add(f);
-							}
-							else if(f.isAck())	//if ACK frame found
-							{	
-								for(int i = 0; i < unAcked.size(); i++)
-								{
-									if(unAcked.get(i) == f.getSA())
-									{
-										unAcked.remove(i);
-									}
+						
+							f = new Frame(s, Frame.FrameType.STAR);
+														
+							if(f.isValid())		//checks if frame has error
+							{
+								if(f.isTerm())	//if terminate frame found
+								{		
+									termFlag = false;
+									dataIn.add(f);
 								}
-								dataOut.remove(0);	//remove data after acknowledgement
-								dataIn.add(f);
+								else if(f.isAck())	//if ACK frame found
+								{	
+									for(int i = 0; i < unAcked.size(); i++)
+									{
+										if(unAcked.get(i) == f.getSA())
+										{
+											unAcked.remove(i);
+										}
+									}
+									//dataOut.remove(0);	//remove data after acknowledgement
+									dataIn.add(f);
+								}
+								
+								else if(address == f.getDA())	//Data frame found
+								{
+									dataOut.add(new Frame(address, f.getSA(), Frame.FrameType.STAR));		//add ACK frame for star
+									dataIn.add(f);
+								}
 							}
-							
-							else if(address == f.getDA())	//Data frame found
+							else
 							{
-								dataOut.add(new Frame(address,f.getSA()));
-								dataIn.add(f);
-							}
-							else	//forward data back to hub
-							{
-								sendData(hubSendPort);
+								//Error handling
 							}
 						}
 						else
