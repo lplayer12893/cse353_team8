@@ -354,9 +354,15 @@ public class Node {
 						s = reader.readLine();
 						
 						if(s != null){
-
-							f = new Frame(s);
-
+							
+							if (receivePort == hubReceivePort)
+							{
+								f = new Frame(s, FrameType.RING);
+							}
+							else
+							{
+								f = new Frame(s, FrameType.STAR);
+							}
 							if(f.isTerm())	//if terminate frame found
 							{		
 								termFlag = false;
@@ -371,14 +377,21 @@ public class Node {
 										unAcked.remove(i);
 									}
 								}
-								dataOut.remove(0);	//remove data after acknowledgement
+								//dataOut.remove(0);	//remove data after acknowledgement
 								dataIn.add(f);
 							}
 							
 							else if(address == f.getDA())	//Data frame found
 							{
-								dataOut.add(new Frame(address,f.getSA()));
-								dataIn.add(f);
+								if (receivePort == hubReceivePort)
+								{
+									dataOut.add(new Frame(address, f.getSA()));		//add ACK frame
+									dataIn.add(f);
+								}
+								else
+								{
+									
+								}
 							}
 							else	//forward data back to hub
 							{
