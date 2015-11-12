@@ -83,7 +83,7 @@ public class Switch {
 
 						writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
 						
-						for(; startingPort < 65535; startingPort++)	// iterates until a free port is found
+						for(; startingPort < 65534; startingPort++)	// iterates until a free port is found
 						{
 							try {
 								ServerSocket tmp = new ServerSocket(startingPort);
