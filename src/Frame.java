@@ -6,15 +6,15 @@ public class Frame {
     
     public enum FrameType{RING,STAR};
 	
-	private Integer AC;
-	private Integer FC;
-    private final Integer SA;
-    private final Integer DA;
-    private final Integer SIZE;
-    private final String Data;
-    private Integer CRC;
-    private Integer FS;
-    private FrameType frameType;
+	protected Integer AC;
+	protected Integer FC;
+	protected final Integer SA;
+	protected final Integer DA;
+	protected final Integer SIZE;
+	protected final String Data;
+	protected Integer CRC;
+	protected Integer FS;
+	protected FrameType frameType;
     
     private Boolean valid;
     
@@ -28,14 +28,18 @@ public class Frame {
     }
     
     /**
-     * Constructs an acknowledgement
+     * Constructs an acknowledgment starter
      * @param sa
      * @param da
      * @param type
      */
     public Frame(Integer sa, Integer da, FrameType type)
     {
-        this(sa,da,0,"",type);
+    	SA = sa;
+		DA = da;
+		SIZE = 0;
+		Data = "";
+		frameType = type;
     }
     
     /**
@@ -259,17 +263,35 @@ public class Frame {
      */
     public void setCRC()
     {
-    	String s = String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');    //formating and replacing maintains leading 0's
-        s = s + String.format("%8s", Integer.toBinaryString(DA)).replace(' ', '0');
-        s = s + String.format("%8s", Integer.toBinaryString(SIZE)).replace(' ', '0');
-        
-        Integer n;    //convert the data to binary one byte at a time
-        for(int i = 0; i < SIZE; i++){
-            n = Integer.valueOf(Data.charAt(i));
-            s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
-        }
-        
-        CRC = 0;
+    	String s;
+    	if(frameType == FrameType.STAR)
+    	{
+	    	s = String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');    //formating and replacing maintains leading 0's
+	        s = s + String.format("%8s", Integer.toBinaryString(DA)).replace(' ', '0');
+	        s = s + String.format("%8s", Integer.toBinaryString(SIZE)).replace(' ', '0');
+	        
+	        Integer n;    //convert the data to binary one byte at a time
+	        for(int i = 0; i < SIZE; i++){
+	            n = Integer.valueOf(Data.charAt(i));
+	            s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
+	        }
+    	}
+    	else
+    	{
+    		s = String.format("%8s", Integer.toBinaryString(AC)).replace(' ', '0');
+        	s = s + String.format("%8s", Integer.toBinaryString(FC)).replace(' ', '0');
+            s = s + String.format("%8s", Integer.toBinaryString(DA)).replace(' ', '0');
+            s = s + String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');
+            s = s + String.format("%8s", Integer.toBinaryString(SIZE)).replace(' ', '0');
+            
+            Integer n;    //convert the data to binary one byte at a time
+            for(int i = 0; i < SIZE; i++){
+                n = Integer.valueOf(Data.charAt(i));
+                s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
+            }
+    	}
+    	
+    	CRC = 0;
         for(int j = 0; j < s.length(); j++)
         {
         	if(s.charAt(j) == '1')
@@ -392,7 +414,7 @@ public class Frame {
     }
     
     /**
-     * @return true if the frame is an acknowledgement of frame received, false otherwise
+     * @return true if the frame is an acknowledgment of frame received, false otherwise
      */
     public boolean isAck()
     {
