@@ -1,5 +1,7 @@
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -141,4 +143,142 @@ public class RingHub {
 			}
 		}
 	
-}
+	
+	
+	/**
+	 * Sends data from dataOut to the socket that accepts it when made
+	 */
+	private void sendData(){
+		
+		Thread send = new Thread() {
+			public void run()  {
+				try {
+					Socket s = null;
+					BufferedWriter writer = null;
+					Frame f = null;
+					
+					ArrayList<Integer> badIndices = new ArrayList<Integer>();
+					while(termflag)	// until time to terminate
+					{
+						
+						badIndices.clear();
+						f = null;
+						
+						if(!Nodesbuffer.isEmpty())	// if there is data to be sent
+						{
+								f = Nodesbuffer.pop();
+							}
+						
+						
+						
+					}
+					
+					
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+						System.exit(-1);
+					}
+					System.out.println("Switch send is returning");
+					return;
+				}
+			};
+			send.start();	//begin thread
+			return;
+		}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	/**
+	 * Reads data from the socket when the "server" accepts a client
+	 * The data is then printed
+	 * @param recPort the port which the switch is receiving upon, one thread per node
+	 */
+	private void receiveData(final Integer recPort){
+		Thread rec = new Thread() {
+			public void run() {
+				
+				try {
+					String ss = null;
+					Frame ff = null;
+					ServerSocket listen1 = new ServerSocket(recPort);
+					Socket cc = null;
+					BufferedReader reader1 = null;
+					
+					while(termflag)	// until time to terminate
+					{
+						
+						try {	// wait for connection, periodically checking termination status
+							listen1.setSoTimeout(10000);
+							cc = listen1.accept();
+						} catch (SocketTimeoutException e) {
+							continue;
+						}
+						
+						reader1 = new BufferedReader(new InputStreamReader(cc.getInputStream()));
+						if(reader1 != null)
+						{
+							while(!reader1.ready())	//wait until reader is ready
+							{
+								sleep(500);
+							}
+							
+							while(reader1.ready())	//read all data and process the data
+							{
+								ss = reader1.readLine();
+								ff = new Frame(ss);
+							
+								for(int i = 0; i < sendPorts.size(); i++)
+								{
+									if (recPort(i)== recPort)
+								
+								}
+								if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
+								{
+									terminated++;
+									System.out.println("terminated = " + terminated);
+									if(terminated == numNodes)
+									{
+										System.out.println("termflagRing is set to false");
+										termflag = false;
+										listen1.close();
+										System.out.println("RingHub receive is returning");
+										return;
+									}
+								}
+								
+							}
+						}
+						reader1.close();
+						cc.close();
+						reader1 = null;
+						cc = null;
+
+					}
+
+
+				} catch (IOException e) {
+					System.err.println("ERROR: There is a port conflict in switch receive, port " + recPort);
+					e.printStackTrace();
+					System.exit(-1);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					System.exit(-1);
+				}
+
+				return;
+			}
+		};
+		rec.start();
+		return;
+	}
+	
+	}
+	
+	
+	
