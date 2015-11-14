@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Random;
 
 /**
- * Contains the implementation for a switch in a tcp/ip network
+ * Contains the implementation for a RingHub in a tcp/ip network
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
  */
 public class RingHub {
@@ -26,6 +26,8 @@ public class RingHub {
 	boolean termflag; // used to synchronize termination of the network
 	
 	int terminated;
+	
+	int timeout;
 	
 	ArrayDeque<BufferedItem> nodesbuffer;	// buffer of frames, FIFO
 	
@@ -128,7 +130,7 @@ public class RingHub {
 								e.printStackTrace();
 									}
 								}
-					System.out.println("Switch listener is returning");
+					System.out.println("RingHub listener is returning");
 					return;
 				}
 			};
@@ -145,7 +147,7 @@ public class RingHub {
 				}
 			}
 			
-			nodesbuffer.add(new Token(),0);
+			nodesbuffer.add(new BufferedItem(new Token(),0));
 		
 			sendData();
 	
@@ -178,7 +180,11 @@ public class RingHub {
 					{
 						b = null;
 						f = null;
-						
+						if(timeout == sendPorts.size())	// assume token was lost
+						{
+							nodesbuffer.add(new BufferedItem(new Token(),0));
+							timeout = 0;
+						}
 						if(!nodesbuffer.isEmpty())	// if there is data to be sent
 						{
 							b = nodesbuffer.pop();
@@ -232,9 +238,9 @@ public class RingHub {
 						writer.close();
 						s.close();
 					}
-									
+					
 				} catch (IOException e) {
-					System.err.println("ERROR: There is a port conflict in switch send");
+					System.err.println("ERROR: There is a port conflict in Hub send");
 					System.exit(-1);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
@@ -260,20 +266,32 @@ public class RingHub {
 			public void run() {
 				
 				try {
+					int reIssueToken;
 					String ss = null;
 					Frame ff = null;
 					ServerSocket listen1 = new ServerSocket(recPort);
 					Socket cc = null;
 					BufferedReader reader1 = null;
+					boolean flag = true;
 					
 					while(termflag)	// until time to terminate
 					{
-						
+						reIssueToken = sendPorts.size() + 1; 
 						try {	// wait for connection, periodically checking termination status
-							listen1.setSoTimeout(10000);
+							listen1.setSoTimeout(reIssueToken);
 							cc = listen1.accept();
 						} catch (SocketTimeoutException e) {
+							if(flag)
+							{
+								timeout++;
+								flag = false;
+							}
 							continue;
+						}
+						if(!flag)
+						{
+							flag = true;
+							timeout--;
 						}
 						
 						reader1 = new BufferedReader(new InputStreamReader(cc.getInputStream()));
@@ -288,26 +306,29 @@ public class RingHub {
 							{
 								ss = reader1.readLine();
 								ff = new Frame(ss,Frame.FrameType.RING);
-							
-								for(int i = 0; i < sendPorts.size(); i++)
-								{
-									if(receivePorts.get(i) == recPort)
-									{
-										nodesbuffer.add(new BufferedItem(ff,i));
-									}
 								
-								}
-								if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
+								if(ff.isValid())
 								{
-									terminated++;
-									System.out.println("terminated = " + terminated);
-									if(terminated == numNodes)
+									for(int i = 0; i < sendPorts.size(); i++)
 									{
-										System.out.println("termflagRing is set to false");
-										termflag = false;
-										listen1.close();
-										System.out.println("RingHub receive is returning");
-										return;
+										if(receivePorts.get(i) == recPort)
+										{
+											nodesbuffer.add(new BufferedItem(ff,i));
+										}
+									
+									}
+									if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
+									{
+										terminated++;
+										System.out.println("terminated = " + terminated);
+										if(terminated == numNodes)
+										{
+											System.out.println("termflagRing is set to false");
+											termflag = false;
+											listen1.close();
+											System.out.println("RingHub receive is returning");
+											return;
+										}
 									}
 								}
 							}
