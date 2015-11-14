@@ -18,5 +18,4 @@ public class Ack extends Frame
 		
 		setCRC();
 	}
-
 }

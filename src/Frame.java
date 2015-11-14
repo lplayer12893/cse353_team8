@@ -1,3 +1,5 @@
+import java.util.Random;
+
 /**
  * A frame to be sent in an pizza MAC protocol simulator
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
@@ -323,9 +325,10 @@ public class Frame {
      */
     public String toBinFrame()
     {
+    	String s;
     	if(frameType == FrameType.STAR)
     	{
-	        String s = String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');    //formating and replacing maintains leading 0's
+	        s = String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');    //formating and replacing maintains leading 0's
 	        s = s + String.format("%8s", Integer.toBinaryString(DA)).replace(' ', '0');
 	        s = s + String.format("%8s", Integer.toBinaryString(SIZE)).replace(' ', '0');
 	        
@@ -343,34 +346,44 @@ public class Frame {
 	        		CRC++;
 	        	}
 	        }
+    	}
+    	else
+    	{
+	    	s = String.format("%8s", Integer.toBinaryString(AC)).replace(' ', '0');
+	    	s = s + String.format("%8s", Integer.toBinaryString(FC)).replace(' ', '0');
+	        s = s + String.format("%8s", Integer.toBinaryString(DA)).replace(' ', '0');
+	        s = s + String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');
+	        s = s + String.format("%8s", Integer.toBinaryString(SIZE)).replace(' ', '0');
 	        
-	        return s;
+	        Integer n;    //convert the data to binary one byte at a time
+	        for(int i = 0; i < SIZE; i++){
+	            n = Integer.valueOf(Data.charAt(i));
+	            s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
+	        }
+	        
+	        CRC = 0;
+	        for(int j = 0; j < s.length(); j++)
+	        {
+	        	if(s.charAt(j) == '1')
+	        	{
+	        		CRC++;
+	        	}
+	        }
+	        
+	        s = s + String.format("%8s", Integer.toBinaryString(CRC)).replace(' ', '0');
+	        s = s + String.format("%8s", Integer.toBinaryString(FS)).replace(' ', '0');
+    	}
+        
+    	Random r = new Random();
+    	
+    	if(r.nextInt(20) == 0)	// 5% chance to incorrectly send frame
+    	{
+    		if(s.charAt(0) == '0')
+    		{
+    			s.replaceFirst("[0]", "1");
+    		}
     	}
     	
-    	String s = String.format("%8s", Integer.toBinaryString(AC)).replace(' ', '0');
-    	s = s + String.format("%8s", Integer.toBinaryString(FC)).replace(' ', '0');
-        s = s + String.format("%8s", Integer.toBinaryString(DA)).replace(' ', '0');
-        s = s + String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');
-        s = s + String.format("%8s", Integer.toBinaryString(SIZE)).replace(' ', '0');
-        
-        Integer n;    //convert the data to binary one byte at a time
-        for(int i = 0; i < SIZE; i++){
-            n = Integer.valueOf(Data.charAt(i));
-            s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
-        }
-        
-        CRC = 0;
-        for(int j = 0; j < s.length(); j++)
-        {
-        	if(s.charAt(j) == '1')
-        	{
-        		CRC++;
-        	}
-        }
-        
-        s = s + String.format("%8s", Integer.toBinaryString(CRC)).replace(' ', '0');
-        s = s + String.format("%8s", Integer.toBinaryString(FS)).replace(' ', '0');
-        
         return s;
     }
 
