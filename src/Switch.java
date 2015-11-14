@@ -261,6 +261,7 @@ public class Switch {
 											
 											writer.close();
 											s.close();
+											break;
 										} catch(IOException ex) {
 											try {
 												if(i > 2)
@@ -284,7 +285,7 @@ public class Switch {
 						}
 						sleep(500);
 					}
-					Frame term = new Frame();	// send termination frame to all nodes
+					Term term = new Term(Frame.FrameType.STAR);	// send termination frame to all nodes
 					for(Integer k : sendPorts)
 					{
 						s = new Socket((String)null, k);
