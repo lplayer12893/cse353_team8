@@ -8,9 +8,10 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Random;
 
 /**
- * Contains the implementation for a switch in a tcp/ip network
+ * Contains the implementation for a RingHub in a tcp/ip network
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
  */
 public class RingHub {
@@ -26,7 +27,9 @@ public class RingHub {
 	
 	int terminated;
 	
-	ArrayDeque<Frame> Nodesbuffer;	// buffer of frames, FIFO
+	int timeout;
+	
+	ArrayDeque<BufferedItem> nodesbuffer;	// buffer of frames, FIFO
 	
 	
 	RingHub(int num) {
@@ -53,7 +56,7 @@ public class RingHub {
 		// Initialize termination flag
 		termflag = true;
 		
-		Nodesbuffer = new ArrayDeque<Frame>();
+		nodesbuffer = new ArrayDeque<BufferedItem>();
 		
 		/**
 		 * Handles accepting connections, reassigning the connections, and closing connections on termination
@@ -127,12 +130,24 @@ public class RingHub {
 								e.printStackTrace();
 									}
 								}
-					System.out.println("Switch listener is returning");
+					System.out.println("RingHub listener is returning");
 					return;
 				}
 			};
 	
 			aa.start();
+			
+			while(sendPorts.size() == 0)
+			{
+				try {
+					Thread.sleep(500);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					System.exit(-1);
+				}
+			}
+			
+			nodesbuffer.add(new BufferedItem(new Token(),0));
 		
 			sendData();
 	
@@ -148,52 +163,99 @@ public class RingHub {
 	/**
 	 * Sends data from dataOut to the socket that accepts it when made
 	 */
-	private void sendData(){
-		
-		Thread send = new Thread() {
-			public void run()  {
-				try {
-					Socket s = null;
-					BufferedWriter writer = null;
-					Frame f = null;
-					
-					ArrayList<Integer> badIndices = new ArrayList<Integer>();
+	private void sendData()
+	{
+		Thread send = new Thread()
+		{
+			public void run() 
+			{
+				Socket s = null;
+				BufferedWriter writer = null;
+				BufferedItem b = null;
+				Frame f = null;
+				
+				try
+				{
 					while(termflag)	// until time to terminate
 					{
-						
-						badIndices.clear();
+						b = null;
 						f = null;
-						
-						if(!Nodesbuffer.isEmpty())	// if there is data to be sent
+						if(timeout == sendPorts.size())	// assume token was lost
 						{
-								f = Nodesbuffer.pop();
+							nodesbuffer.add(new BufferedItem(new Token(),0));
+							timeout = 0;
+						}
+						if(!nodesbuffer.isEmpty())	// if there is data to be sent
+						{
+							b = nodesbuffer.pop();
+							f = b.getFrame();
+							while(true)
+							{
+								try {
+									s = new Socket((String)null, sendPorts.get(b.getPortIndex()));
+									writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+									writer.write(f.toBinFrame());
+									
+									writer.close();
+									s.close();
+									break;
+								} catch(IOException e) {
+									
+									Random r = new Random();
+									long sleep = r.nextInt(100);
+									int i = 1;
+									
+									try
+									{
+										if(i > 2)
+										{
+											sleep(sleep);
+										}
+										else
+										{
+											sleep((long)Math.pow(sleep, i));
+											i++;
+										}
+									} catch (InterruptedException e1)
+									{
+										e1.printStackTrace();
+										System.exit(-1);
+									}
+								}
 							}
+						}
 						
+						sleep(500);
+					}
+
+					Term term = new Term(Frame.FrameType.RING);	// send termination frame to all nodes
+					for(Integer k : sendPorts)
+					{
+						s = new Socket((String)null, k);
+						writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+						writer.write(term.toBinFrame());
 						
-						
+						writer.close();
+						s.close();
 					}
 					
-					
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-						System.exit(-1);
-					}
-					System.out.println("Switch send is returning");
-					return;
+				} catch (IOException e) {
+					System.err.println("ERROR: There is a port conflict in Hub send");
+					System.exit(-1);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					System.exit(-1);
 				}
-			};
-			send.start();	//begin thread
-			return;
-		}
+				
+				System.out.println("RingHub send is returning");
+				return;
+			}
+		};
+		send.start();	//begin thread
+		return;
+	}
 	
-	
-	
-	
-	
-	
-	
-	
-	
+
 	/**
 	 * Reads data from the socket when the "server" accepts a client
 	 * The data is then printed
@@ -204,20 +266,32 @@ public class RingHub {
 			public void run() {
 				
 				try {
+					int reIssueToken;
 					String ss = null;
 					Frame ff = null;
 					ServerSocket listen1 = new ServerSocket(recPort);
 					Socket cc = null;
 					BufferedReader reader1 = null;
+					boolean flag = true;
 					
 					while(termflag)	// until time to terminate
 					{
-						
+						reIssueToken = sendPorts.size() + 1; 
 						try {	// wait for connection, periodically checking termination status
-							listen1.setSoTimeout(10000);
+							listen1.setSoTimeout(reIssueToken);
 							cc = listen1.accept();
 						} catch (SocketTimeoutException e) {
+							if(flag)
+							{
+								timeout++;
+								flag = false;
+							}
 							continue;
+						}
+						if(!flag)
+						{
+							flag = true;
+							timeout--;
 						}
 						
 						reader1 = new BufferedReader(new InputStreamReader(cc.getInputStream()));
@@ -231,27 +305,32 @@ public class RingHub {
 							while(reader1.ready())	//read all data and process the data
 							{
 								ss = reader1.readLine();
-								ff = new Frame(ss);
-							
-								for(int i = 0; i < sendPorts.size(); i++)
-								{
-									if (recPort(i)== recPort)
+								ff = new Frame(ss,Frame.FrameType.RING);
 								
-								}
-								if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
+								if(ff.isValid())
 								{
-									terminated++;
-									System.out.println("terminated = " + terminated);
-									if(terminated == numNodes)
+									for(int i = 0; i < sendPorts.size(); i++)
 									{
-										System.out.println("termflagRing is set to false");
-										termflag = false;
-										listen1.close();
-										System.out.println("RingHub receive is returning");
-										return;
+										if(receivePorts.get(i) == recPort)
+										{
+											nodesbuffer.add(new BufferedItem(ff,i));
+										}
+									
+									}
+									if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
+									{
+										terminated++;
+										System.out.println("terminated = " + terminated);
+										if(terminated == numNodes)
+										{
+											System.out.println("termflagRing is set to false");
+											termflag = false;
+											listen1.close();
+											System.out.println("RingHub receive is returning");
+											return;
+										}
 									}
 								}
-								
 							}
 						}
 						reader1.close();
@@ -260,7 +339,8 @@ public class RingHub {
 						cc = null;
 
 					}
-
+					
+					listen1.close();
 
 				} catch (IOException e) {
 					System.err.println("ERROR: There is a port conflict in switch receive, port " + recPort);
@@ -277,8 +357,4 @@ public class RingHub {
 		rec.start();
 		return;
 	}
-	
-	}
-	
-	
-	
+}

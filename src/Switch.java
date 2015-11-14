@@ -261,6 +261,7 @@ public class Switch {
 											
 											writer.close();
 											s.close();
+											break;
 										} catch(IOException ex) {
 											try {
 												if(i > 2)
@@ -284,7 +285,7 @@ public class Switch {
 						}
 						sleep(500);
 					}
-					Frame term = new Frame();	// send termination frame to all nodes
+					Term term = new Term(Frame.FrameType.STAR);	// send termination frame to all nodes
 					for(Integer k : sendPorts)
 					{
 						s = new Socket((String)null, k);
@@ -345,7 +346,7 @@ public class Switch {
 							while(reader.ready())	//read all data and process the data
 							{
 								s = reader.readLine();
-								f = new Frame(s);
+								f = new Frame(s, Frame.FrameType.STAR);
 
 								if(f.isTerm())	// if is a termination frame, increment count of terminated nodes
 								{
@@ -367,15 +368,7 @@ public class Switch {
 									//	System.out.println("Switch key: " + f.getSA() + " value: " + receivePorts.indexOf(recPort));
 										switchTable.put(f.getSA(), receivePorts.indexOf(recPort));
 									}
-
-									if(f.isPrioritized())
-									{
-										prtyBuffer.addLast(f);
-									}
-									else
-									{
-										buffer.addLast(f);
-									}
+									buffer.addLast(f);
 								}
 							}
 						}
