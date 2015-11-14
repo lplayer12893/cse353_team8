@@ -427,11 +427,23 @@ public class Frame {
     }
     
     /**
+     * @return true if the frame is a token, false otherwise
+     */
+    public boolean isToken()
+    {
+    	if(SIZE == 0 && Data.length() == 0 && AC == 128 && FC == 128)
+    	{
+    		return true;
+    	}
+    	return false;
+    }
+    
+    /**
      * @return true if the frame is an acknowledgment of frame received, false otherwise
      */
     public boolean isAck()
     {
-    	if(SIZE == 0 && Data.length() == 0)
+    	if(SIZE == 0 && Data.length() == 0 && AC != 128 && FC != 128)
     	{
     		return true;
     	}
