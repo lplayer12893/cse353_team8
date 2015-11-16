@@ -13,9 +13,7 @@ import java.util.Random;
 /**
  * Contains flags and functions to control server and client sockets
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
- * @TODO add timeout for star network to error check:
- * 				if no acknowledgement within timeout, resend frame.
- * 		 error handling for ring network
+ * @TODO implement the check to set hubstatus and switchstatus
  */
 public class Node {
 	
@@ -410,10 +408,10 @@ public class Node {
 											}
 											else if(s.isAck())
 											{
-												dataOut.remove(i);	//remove acknowledgement after sent
+												dataOut.remove(i);	//remove acknowledgement after it is sent
 											}
 											
-											s = new Token(address, (address + 1));
+											s = new Token();	//create new token and write to socket
 											writer.write(s.toBinFrame());
 											writer.newLine();
 
@@ -514,7 +512,8 @@ public class Node {
 							}
 							else
 							{
-								unAcked.remove(unAcked.size() - 1);
+								unAcked.remove(unAcked.size() - 1);		//assumes nothing correct DA is at end of list
+																		//Better way to implement?
 							}
 						}
 						
@@ -547,7 +546,14 @@ public class Node {
 										unAcked.remove(i);
 									}
 								}
-								dataOut.remove(0);	//remove data after acknowledgement
+								for (int i = 0; i < dataOut.size(); i++)
+								{
+									if (f.getSA() == dataOut.get(i).getSA() && f.getDA() == dataOut.get(i).getDA())	//find correct data instance to remove
+									{
+										dataOut.remove(i);	//remove data after acknowledgement
+										break;
+									}
+								}
 								dataIn.add(f);
 							}
 								
@@ -648,11 +654,19 @@ public class Node {
 										{
 											unAcked.remove(i);
 										}
-										f = new Token(address, (address + 1));	//send token to next node
-										dataOut.add(f);
 									}
-									dataOut.remove(0);	//remove data after acknowledgement
+									
+									for (int i = 0; i < dataOut.size(); i++)
+									{
+										if (f.getSA() == dataOut.get(i).getSA() && f.getDA() == dataOut.get(i).getDA())	//find correct data instance to remove
+										{
+											dataOut.remove(i);	//remove data after acknowledgement
+											break;
+										}
+									}
+									
 									dataIn.add(f);
+									//Create new token after ACK?
 								}
 								
 								else if(f.isToken())
