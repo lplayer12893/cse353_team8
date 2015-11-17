@@ -5,9 +5,7 @@ import java.util.Random;
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
  */
 public class Frame {
-    
-    public enum FrameType{RING,STAR};
-	
+    	
 	protected Integer AC;
 	protected Integer FC;
 	protected final Integer SA;
@@ -92,8 +90,8 @@ public class Frame {
     	}
     	else
     	{
-    		AC = Integer.parseInt(frame.substring(0,8),2);;
-			FC = Integer.parseInt(frame.substring(8,16),2);;
+    		AC = Integer.parseInt(frame.substring(0,8),2);
+			FC = Integer.parseInt(frame.substring(8,16),2);
 	        DA = Integer.parseInt(frame.substring(16,24),2);
 	        SA = Integer.parseInt(frame.substring(24,32),2);
 	        SIZE = Integer.parseInt(frame.substring(32,40),2);
@@ -109,15 +107,19 @@ public class Frame {
 	
 	        CRC = Integer.parseInt(frame.substring(i,i+8),2);
 	        
+	        String t = frame.substring(0,i);
 	        int crc = 0;
 	        for(int j = 0; j < s.length(); j++)
 	        {
-	        	if(s.charAt(j) == '1')
+	        	if(t.charAt(j) == '1')
 	        	{
 	        		crc++;
 	        	}
 	        }
-	        
+	        //*********************************
+	        FS = 0;
+	        frameType = type;
+	        System.out.println("frame crc = " + CRC + " : calc crc = " + crc + " for " + toString());
 	        if(CRC == crc)
 	        {
 	        	valid = true;
@@ -141,12 +143,13 @@ public class Frame {
     {
     	SA = sa;
     	String [] s = init.split(",",3);
-    	if(s.length != 2)
+    	if(s.length != 3)
     	{
     		System.err.println("Node " + sa + " has a frame issue, length " + s.length);
     	}
     	DA = Integer.parseInt(s[0]);
-    	if(s[1] == "C")
+    	
+    	if(s[1].equals("C"))
     	{
     		AC = null;
     		FC = null;
@@ -301,6 +304,11 @@ public class Frame {
         		CRC++;
         	}
         }
+        
+        CRC = CRC % 256;
+        
+        System.out.println("CRC = " + CRC + " for frame: " + toString());
+        
     }
     
     /**
@@ -326,6 +334,7 @@ public class Frame {
     public String toBinFrame()
     {
     	String s;
+    	setCRC();
     	if(frameType == FrameType.STAR)
     	{
 	        s = String.format("%8s", Integer.toBinaryString(SA)).replace(' ', '0');    //formating and replacing maintains leading 0's
@@ -338,14 +347,7 @@ public class Frame {
 	            s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
 	        }
 	        
-	        CRC = 0;
-	        for(int j = 0; j < s.length(); j++)
-	        {
-	        	if(s.charAt(j) == '1')
-	        	{
-	        		CRC++;
-	        	}
-	        }
+	        s = s + String.format("%8s", Integer.toBinaryString(CRC)).replace(' ', '0');
     	}
     	else
     	{
@@ -361,20 +363,11 @@ public class Frame {
 	            s = s + String.format("%8s", Integer.toBinaryString(n)).replace(' ', '0');
 	        }
 	        
-	        CRC = 0;
-	        for(int j = 0; j < s.length(); j++)
-	        {
-	        	if(s.charAt(j) == '1')
-	        	{
-	        		CRC++;
-	        	}
-	        }
-	        
 	        s = s + String.format("%8s", Integer.toBinaryString(CRC)).replace(' ', '0');
 	        s = s + String.format("%8s", Integer.toBinaryString(FS)).replace(' ', '0');
     	}
         
-    	Random r = new Random();
+    	/*Random r = new Random();
     	
     	if(r.nextInt(20) == 0)	// 5% chance to incorrectly send frame
     	{
@@ -382,7 +375,7 @@ public class Frame {
     		{
     			s.replaceFirst("[0]", "1");
     		}
-    	}
+    	}*/
     	
         return s;
     }
@@ -443,9 +436,20 @@ public class Frame {
      */
     public boolean isAck()
     {
-    	if(SIZE == 0 && Data.length() == 0 && AC != 128 && FC != 128)
+    	switch(frameType)
     	{
-    		return true;
+    	case STAR:
+    		if(SIZE == 0 && Data.length() == 0)
+    		{
+    			return true;
+    		}
+    		return false;
+    	case RING:
+    		if(AC != 128 && FC != 128 && FS == 192)
+        	{
+        		return true;
+        	}
+    		return false;
     	}
     	return false;
     }
@@ -455,7 +459,14 @@ public class Frame {
      */
     public boolean isTerm()
     {
-    	if(DA == 0)
+    	if(frameType == FrameType.RING)
+    	{
+        	if(DA == 0 && SA == 0 && AC != 128 && FC != 128)
+        	{
+        		return true;
+        	}
+    	}
+    	else if(DA == 0 && SA == 0)
     	{
     		return true;
     	}
@@ -465,14 +476,19 @@ public class Frame {
     @Override
     public String toString()
     {
-        if(DA == 0)
+        if(isTerm())
         {
         	return "termination";
         }
-        else if(SIZE == 0)    //size == 0 indicates the frame is an ACK
+        else if(isAck())    //size == 0 indicates the frame is an ACK
     	{
             return "SA: " + SA + ", DA: " + DA + " ACK";
     	}
+        else if(isToken())
+        {
+            return "SA: " + SA + ", DA: " + DA + " TOKEN";
+
+        }
 
     	return "SA: " + SA + ", DA: " + DA + "," + SIZE + "," + Data;
     }

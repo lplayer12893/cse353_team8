@@ -31,7 +31,6 @@ public class Switch {
 	HashMap <Integer, Integer> switchTable;	// key is node number, value is index in clientList
 	
 	ArrayDeque<Frame> buffer;	// buffer of frames, FIFO
-	ArrayDeque<Frame> prtyBuffer;	// buffer of prioritized frames, FIFO
 
 	Switch(int num) {
 		
@@ -61,7 +60,6 @@ public class Switch {
 		
 		// Initialize frame buffer
 		buffer = new ArrayDeque<Frame>();
-		prtyBuffer = new ArrayDeque<Frame>();
 		
 		/**
 		 * Handles accepting connections, reassigning the connections, and closing connections on termination
@@ -74,12 +72,16 @@ public class Switch {
 				
 				Socket client;
 				
+				System.out.println("Switch listener beginning loop");
+				
 				while(termflag)
 				{
 					client = null;
 					try {
 						listener.setSoTimeout(5000);
 						client = listener.accept();	//accept connection
+						
+						System.out.println("Switch connected to client");
 
 						writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));	//get socket outputStream
 						
@@ -92,10 +94,13 @@ public class Switch {
 								{
 									throw new IOException();
 								}
+								System.out.println("Switch reassigning client to " + startingPort);
+
 								usedPorts.add(startingPort);
 								receivePorts.add(startingPort);
 								break;
 							} catch (IOException e) {
+								System.out.println("Port " + startingPort + " was taken");
 								continue;
 							}
 						}
@@ -129,6 +134,8 @@ public class Switch {
 						client.close();
 
 					} catch (SocketTimeoutException e) {
+						System.out.println("Switch timed out in listener");
+						continue;
 						
 					} catch (IOException e) {
 						System.err.println("Failed to establish reassigned connection to client");
@@ -142,11 +149,6 @@ public class Switch {
 		a.start();
 
 		sendData();
-		try {
-			a.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 	}
 	
 	
@@ -166,16 +168,9 @@ public class Switch {
 					{
 						badIndices.clear();
 						f = null;
-						if(!prtyBuffer.isEmpty() || !buffer.isEmpty())	// if there is data to be sent
+						if(!buffer.isEmpty())	// if there is data to be sent
 						{
-							if(!prtyBuffer.isEmpty())
-							{
-								f = prtyBuffer.pop();
-							}
-							else
-							{
-								f = buffer.pop();
-							}
+							f = bufferOp(BufferOp.REM,null);
 							
 							if(!switchTable.containsKey(f.getDA()))	// if address is not known
 							{
@@ -188,6 +183,8 @@ public class Switch {
 											s = new Socket((String)null, sendPorts.get(i));
 											writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 											writer.write(f.toBinFrame());
+											
+											System.out.println("Switch has flooded frame: " + f.toString());
 											
 											writer.close();
 											s.close();
@@ -211,6 +208,8 @@ public class Switch {
 													s = new Socket((String)null, sendPorts.get(badIndices.get(j)));
 													writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 													writer.write(f.toBinFrame());
+													
+													System.out.println("Switch has reflooded frame: " + f.toString());
 													
 													writer.close();
 													s.close();
@@ -245,6 +244,8 @@ public class Switch {
 									writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 									writer.write(f.toBinFrame());
 									
+									System.out.println("Switch has forwarded frame: " + f.toString());
+									
 									writer.close();
 									s.close();
 								} catch(IOException e) {
@@ -258,6 +259,8 @@ public class Switch {
 											s = new Socket((String)null, sendPorts.get(switchTable.get(f.getDA())));
 											writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 											writer.write(f.toBinFrame());
+											
+											System.out.println("Switch has reforwarded frame: " + f.toString());
 											
 											writer.close();
 											s.close();
@@ -285,7 +288,10 @@ public class Switch {
 						}
 						sleep(500);
 					}
-					Term term = new Term(Frame.FrameType.STAR);	// send termination frame to all nodes
+					
+					System.out.println("Switch is sending termination frames");
+					
+					Term term = new Term(FrameType.STAR);	// send termination frame to all nodes
 					for(Integer k : sendPorts)
 					{
 						s = new Socket((String)null, k);
@@ -333,20 +339,25 @@ public class Switch {
 						} catch (SocketTimeoutException e) {
 							continue;
 						}
+						
+						System.out.println("Switch connected to a client");
+						
 						reader = new BufferedReader(new InputStreamReader(c.getInputStream()));
 
 						if(reader != null)
 						{
 							while(!reader.ready())	//wait until reader is ready
 							{
-							//	System.out.println("Switch waiting for reader to be ready");
+								System.out.println("Switch waiting for reader to be ready");
 
 								sleep(500);
 							}
 							while(reader.ready())	//read all data and process the data
 							{
 								s = reader.readLine();
-								f = new Frame(s, Frame.FrameType.STAR);
+								f = new Frame(s, FrameType.STAR);
+								
+								System.out.println("Switch has received frame: " + f.toString());
 
 								if(f.isTerm())	// if is a termination frame, increment count of terminated nodes
 								{
@@ -365,10 +376,11 @@ public class Switch {
 								{
 									if(!switchTable.containsKey(f.getSA()))	// if address is not known, learn it
 									{
-									//	System.out.println("Switch key: " + f.getSA() + " value: " + receivePorts.indexOf(recPort));
+										System.out.println("Switch learned node address " + f.getSA());
 										switchTable.put(f.getSA(), receivePorts.indexOf(recPort));
 									}
-									buffer.addLast(f);
+									bufferOp(BufferOp.ADDLAST,f);
+									System.out.println("Switch added frame to buffer: " + f.toString());
 								}
 							}
 						}
@@ -376,9 +388,8 @@ public class Switch {
 						c.close();
 						reader = null;
 						c = null;
-
 					}
-
+					listen.close();
 
 				} catch (IOException e) {
 					System.err.println("ERROR: There is a port conflict in switch receive, port " + recPort);
@@ -394,6 +405,30 @@ public class Switch {
 		};
 		rec.start();
 		return;
+	}
+	
+	/**
+	 * Thread synchronized method to prevent concurrent modification of buffer
+	 * @param op
+	 * @param add
+	 * @return Frame being modified
+	 */
+	private synchronized Frame bufferOp(BufferOp op, Frame add)
+	{
+		switch(op)
+		{
+		case ADD:
+			buffer.addFirst(add);
+			return add;
+		case ADDLAST:
+			buffer.addLast(add);
+			return add;
+		case REM:
+			return buffer.pop();
+		default:
+			break;
+		}
+		return null;
 	}
 }
 

@@ -15,27 +15,27 @@ import java.util.Random;
  * @author Lucas Stuyvesant, Joshua Garcia, Nizal Alshammry
  */
 public class RingHub {
-	
-	
+
 	private final int numNodes;
 	ServerSocket Ringlistener;	// listens for and accepts new clients
 	ArrayList<Integer> receivePorts;
 	ArrayList<Integer> sendPorts;
 	ArrayList<Integer> usedPorts;
-	
+
 	boolean termflag; // used to synchronize termination of the network
-	
+
 	int terminated;
-	
+
 	int timeout;
-	
+
 	ArrayDeque<BufferedItem> nodesbuffer;	// buffer of frames, FIFO
-	
-	
-	RingHub(int num) {
-		
+
+
+	RingHub(int num) 
+	{
+
 		numNodes = num;
-		// Initialize Ringlistener server socket. REQUIRES PORT 65535 BE OPEN
+		// Initialize Ringlistener server socket. REQUIRES PORT 65534 BE OPEN
 		while(true)
 		{
 			try {
@@ -46,18 +46,19 @@ public class RingHub {
 				continue;
 			}
 		}
-	
-	
+
+
 		receivePorts = new ArrayList<Integer>();
 		sendPorts = new ArrayList<Integer>();
 		usedPorts = new ArrayList<Integer>();
 		terminated = 0;
-		
+		timeout = 0;
+
 		// Initialize termination flag
 		termflag = true;
-		
+
 		nodesbuffer = new ArrayDeque<BufferedItem>();
-		
+
 		/**
 		 * Handles accepting connections, reassigning the connections, and closing connections on termination
 		 */
@@ -66,100 +67,102 @@ public class RingHub {
 
 				int startingPort = 49665;
 				BufferedWriter writer = null;
-				
+
 				Socket c;
-				
-						while(termflag)
+
+				while(termflag)
+				{
+					c = null;
+					try {
+						Ringlistener.setSoTimeout(5000);
+						c = Ringlistener.accept();	//accept connection
+
+						writer = new BufferedWriter(new OutputStreamWriter(c.getOutputStream()));	//get socket outputStream
+
+						for(; startingPort < 65534; startingPort++)	// iterates until a free port is found
 						{
-							c = null;
 							try {
-								Ringlistener.setSoTimeout(5000);
-								c = Ringlistener.accept();	//accept connection
-								
-								writer = new BufferedWriter(new OutputStreamWriter(c.getOutputStream()));	//get socket outputStream
-								
-								for(; startingPort < 65534; startingPort++)	// iterates until a free port is found
+								ServerSocket tmp = new ServerSocket(startingPort);
+								tmp.close();
+								if(usedPorts.contains(startingPort))
 								{
-									try {
-										ServerSocket tmp = new ServerSocket(startingPort);
-										tmp.close();
-										if(usedPorts.contains(startingPort))
-										{
-											throw new IOException();
-										}
-										usedPorts.add(startingPort);
-										receivePorts.add(startingPort);
-										break;
-									} catch (IOException e) {
-										continue;
-									}
+									throw new IOException();
 								}
-								
-								receiveData(startingPort);	//set up new receiver for reassigned connection
-		
-								writer.write(Integer.toString(startingPort) + "\n");	//reassign the client
-		
-								startingPort++;
-								for(; startingPort < 65535; startingPort ++)	//iterates until a second free port is found
-								{
-									try {
-										ServerSocket tmp = new ServerSocket(startingPort);
-										tmp.close();
-										if(usedPorts.contains(startingPort))
-										{
-											throw new IOException();
-										}
-										usedPorts.add(startingPort);
-										sendPorts.add(startingPort);
-										break;
-									} catch (IOException e) {
-										continue;
-									}
-								}
-								writer.write(Integer.toString(startingPort) + "\n");
-		
-								startingPort++;
-								
-								writer.close();
-								c.close();
-								
-								
-							} catch (SocketTimeoutException e) {	
+								usedPorts.add(startingPort);
+								receivePorts.add(startingPort);
+								break;
 							} catch (IOException e) {
-								System.err.println("Failed to establish reassigned connection to client");
-								e.printStackTrace();
-									}
+								continue;
+							}
+						}
+
+						receiveData(startingPort);	//set up new receiver for reassigned connection
+
+						writer.write(Integer.toString(startingPort) + "\n");	//reassign the client
+						System.out.println("Ringhub reassigning client sender to " + startingPort);
+
+						startingPort++;
+						for(; startingPort < 65535; startingPort ++)	//iterates until a second free port is found
+						{
+							try {
+								ServerSocket tmp = new ServerSocket(startingPort);
+								tmp.close();
+								if(usedPorts.contains(startingPort))
+								{
+									throw new IOException();
 								}
-					System.out.println("RingHub listener is returning");
-					return;
+								usedPorts.add(startingPort);
+								sendPorts.add(startingPort);
+								break;
+							} catch (IOException e) {
+								continue;
+							}
+						}
+						writer.write(Integer.toString(startingPort) + "\n");
+						System.out.println("Ringhub reassigning client receiver to " + startingPort);
+
+						startingPort++;
+
+						writer.close();
+						c.close();
+
+					} catch (SocketTimeoutException e) {
+						continue;
+					} catch (IOException e) {
+						System.err.println("Failed to establish reassigned connection to client");
+						e.printStackTrace();
+					}
 				}
-			};
-	
-			aa.start();
-			
-			while(sendPorts.size() == 0)
-			{
-				try {
-					Thread.sleep(500);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-					System.exit(-1);
-				}
+				System.out.println("RingHub listener is returning");
+				return;
 			}
-			
-			nodesbuffer.add(new BufferedItem(new Token(),0));
-		
-			sendData();
-	
+		};
+
+		aa.start();
+
+		while(sendPorts.size() == 0)
+		{
 			try {
-				aa.join();
+				Thread.sleep(500);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
+				System.exit(-1);
 			}
 		}
-	
-	
-	
+
+		nodesbufferOp(BufferOp.ADD,new BufferedItem(new Token(),0));
+
+		sendData();
+
+		try {
+			aa.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
+
+
 	/**
 	 * Sends data from dataOut to the socket that accepts it when made
 	 */
@@ -173,7 +176,7 @@ public class RingHub {
 				BufferedWriter writer = null;
 				BufferedItem b = null;
 				Frame f = null;
-				
+
 				try
 				{
 					while(termflag)	// until time to terminate
@@ -182,12 +185,12 @@ public class RingHub {
 						f = null;
 						if(timeout == sendPorts.size())	// assume token was lost
 						{
-							nodesbuffer.add(new BufferedItem(new Token(),0));
+							nodesbufferOp(BufferOp.ADD,new BufferedItem(new Token(),0));
 							timeout = 0;
 						}
 						if(!nodesbuffer.isEmpty())	// if there is data to be sent
 						{
-							b = nodesbuffer.pop();
+							b = nodesbufferOp(BufferOp.REM,null);
 							f = b.getFrame();
 							while(true)
 							{
@@ -196,15 +199,17 @@ public class RingHub {
 									writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 									writer.write(f.toBinFrame());
 									
+									System.out.println("Ringhub forwarded frame: " + f.toString());
+
 									writer.close();
 									s.close();
 									break;
 								} catch(IOException e) {
-									
+
 									Random r = new Random();
 									long sleep = r.nextInt(100);
 									int i = 1;
-									
+
 									try
 									{
 										if(i > 2)
@@ -224,21 +229,21 @@ public class RingHub {
 								}
 							}
 						}
-						
+
 						sleep(500);
 					}
 
-					Term term = new Term(Frame.FrameType.RING);	// send termination frame to all nodes
+					Term term = new Term(FrameType.RING);	// send termination frame to all nodes
 					for(Integer k : sendPorts)
 					{
 						s = new Socket((String)null, k);
 						writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 						writer.write(term.toBinFrame());
-						
+
 						writer.close();
 						s.close();
 					}
-					
+
 				} catch (IOException e) {
 					System.err.println("ERROR: There is a port conflict in Hub send");
 					System.exit(-1);
@@ -246,7 +251,7 @@ public class RingHub {
 					e.printStackTrace();
 					System.exit(-1);
 				}
-				
+
 				System.out.println("RingHub send is returning");
 				return;
 			}
@@ -254,7 +259,7 @@ public class RingHub {
 		send.start();	//begin thread
 		return;
 	}
-	
+
 
 	/**
 	 * Reads data from the socket when the "server" accepts a client
@@ -264,7 +269,7 @@ public class RingHub {
 	private void receiveData(final Integer recPort){
 		Thread rec = new Thread() {
 			public void run() {
-				
+
 				try {
 					int reIssueToken;
 					String ss = null;
@@ -273,10 +278,10 @@ public class RingHub {
 					Socket cc = null;
 					BufferedReader reader1 = null;
 					boolean flag = true;
-					
+
 					while(termflag)	// until time to terminate
 					{
-						reIssueToken = sendPorts.size() + 1; 
+						reIssueToken = sendPorts.size() * 10000; 
 						try {	// wait for connection, periodically checking termination status
 							listen1.setSoTimeout(reIssueToken);
 							cc = listen1.accept();
@@ -293,7 +298,7 @@ public class RingHub {
 							flag = true;
 							timeout--;
 						}
-						
+
 						reader1 = new BufferedReader(new InputStreamReader(cc.getInputStream()));
 						if(reader1 != null)
 						{
@@ -301,21 +306,34 @@ public class RingHub {
 							{
 								sleep(500);
 							}
-							
+
 							while(reader1.ready())	//read all data and process the data
 							{
 								ss = reader1.readLine();
-								ff = new Frame(ss,Frame.FrameType.RING);
+								ff = new Frame(ss,FrameType.RING);
+
+								System.out.println("Ringhub received frame: " + ff.toString());
+
+								if(ff.isToken())
+									System.err.println("is Token, CRC = " + ff.CRC);
 								
 								if(ff.isValid())
 								{
+									System.out.println("Ringhub frame is valid");
 									for(int i = 0; i < sendPorts.size(); i++)
 									{
 										if(receivePorts.get(i) == recPort)
 										{
-											nodesbuffer.add(new BufferedItem(ff,i));
+											if(i == (receivePorts.size() - 1))
+											{
+												nodesbufferOp(BufferOp.ADD,new BufferedItem(ff,0));
+											}
+											else
+											{
+												nodesbufferOp(BufferOp.ADD,new BufferedItem(ff,i+1));
+											}
 										}
-									
+
 									}
 									if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
 									{
@@ -339,7 +357,7 @@ public class RingHub {
 						cc = null;
 
 					}
-					
+
 					listen1.close();
 
 				} catch (IOException e) {
@@ -356,5 +374,29 @@ public class RingHub {
 		};
 		rec.start();
 		return;
+	}
+
+	/**
+	 * Thread synchronized method to prevent concurrent modification of nodesbuffer
+	 * @param op
+	 * @param add
+	 * @return BufferedItem being modified
+	 */
+	private synchronized BufferedItem nodesbufferOp(BufferOp op, BufferedItem add)
+	{
+		switch(op)
+		{
+		case ADD:
+			nodesbuffer.addFirst(add);
+			return add;
+		case ADDLAST:
+			nodesbuffer.addLast(add);
+			return add;
+		case REM:
+			return nodesbuffer.pop();
+		default:
+			break;
+		}
+		return null;
 	}
 }

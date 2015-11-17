@@ -27,10 +27,16 @@ public class SocketManager {
 		
 		for(int i = 1; i < numNodes; i++)	// start node processes (threaded part-way through constructor)
 		{
+			System.out.println("Starting Node " + i);
 			new Node(i, new ArrayList<Frame>(), new ArrayList<Frame>());
 		}
 		
+		System.out.println("Starting Switch");
 		new Switch(numNodes - 1);	// start switch processes
+		
+		System.out.println("Starting RingHub");
+		new RingHub(numNodes - 1);	// start ringHub processes
+		
 		System.out.println("Main thread termination");
 	}
 }

@@ -2,7 +2,7 @@ public class Token extends Frame
 {
 	public Token()
 	{
-		super(-1,-1,FrameType.RING);
+		super(0,0,FrameType.RING);
 
 		AC = 128;
 		FC = 128;
