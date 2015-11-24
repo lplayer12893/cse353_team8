@@ -162,7 +162,6 @@ public class RingHub {
 	}
 
 
-
 	/**
 	 * Sends data from dataOut to the socket that accepts it when made
 	 */
@@ -193,6 +192,7 @@ public class RingHub {
 						{
 							b = nodesbufferOp(BufferOp.REM,null);
 							f = b.getFrame();
+
 							while(true)
 							{
 								try {
@@ -305,6 +305,7 @@ public class RingHub {
 						{
 							while(!reader1.ready())	//wait until reader is ready
 							{
+								System.out.println("ringhub waiting for reader");
 								sleep(500);
 							}
 
@@ -321,21 +322,6 @@ public class RingHub {
 								if(ff.isValid())
 								{
 									System.out.println("Ringhub frame is valid");
-									for(int i = 0; i < sendPorts.size(); i++)
-									{
-										if(receivePorts.get(i) == recPort)
-										{
-											if(i == (receivePorts.size() - 1))
-											{
-												nodesbufferOp(BufferOp.ADD,new BufferedItem(ff,0));
-											}
-											else
-											{
-												nodesbufferOp(BufferOp.ADD,new BufferedItem(ff,i+1));
-											}
-										}
-
-									}
 									if(ff.isTerm())	// if is a termination frame, increment count of terminated nodes
 									{
 										terminated++;
@@ -347,6 +333,24 @@ public class RingHub {
 											listen1.close();
 											System.out.println("RingHub receive is returning");
 											return;
+										}
+									}
+									else
+									{
+										for(int i = 0; i < receivePorts.size(); i++)
+										{
+											if(receivePorts.get(i).equals(recPort))
+											{
+												if(i == (receivePorts.size() - 1))
+												{
+													nodesbufferOp(BufferOp.ADD,new BufferedItem(ff,0));
+												}
+												else
+												{
+													nodesbufferOp(BufferOp.ADD,new BufferedItem(ff,i+1));
+												}
+												System.out.println("Ringhub has buffered: " + ff.toString());
+											}
 										}
 									}
 								}
@@ -388,11 +392,11 @@ public class RingHub {
 		switch(op)
 		{
 		case ADD:
-			nodesbuffer.addFirst(add);
-			return add;
-		case ADDLAST:
 			nodesbuffer.addLast(add);
 			return add;
+		//case ADD:
+		//	nodesbuffer.addLast(add);
+		//	return add;
 		case REM:
 			return nodesbuffer.pop();
 		default:

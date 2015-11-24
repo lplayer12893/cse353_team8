@@ -68,7 +68,7 @@ public class Frame {
 	
 	        CRC = Integer.parseInt(frame.substring(24+i,32+i),2);
 	        
-	        int crc = 0;
+	        Integer crc = 0;
 	        String crc_str = frame.substring(0,24+i);
 	        for(int j = 0; j < crc_str.length(); j++)
 	        {
@@ -78,7 +78,9 @@ public class Frame {
 	        	}
 	        }
 	        
-	        if(CRC == crc)
+	        crc = crc % 256;
+	        
+	        if(CRC.equals(crc))
 	        {
 	        	valid = true;
 	        }
@@ -108,7 +110,7 @@ public class Frame {
 	
 	        CRC = Integer.parseInt(frame.substring(40+i,48+i),2);
 	        
-	        int crc = 0;
+	        Integer crc = 0;
 	        String crc_str = frame.substring(0,40+i);
 	        for(int j = 0; j < crc_str.length(); j++)
 	        {
@@ -117,11 +119,11 @@ public class Frame {
 	        		crc++;
 	        	}
 	        }
-	        //*********************************
-	        FS = 0;
+	        
+	        crc = crc % 256;        
+	        
 	        frameType = type;
-	        System.out.println("frame crc = " + CRC + " : calc crc = " + crc + " for " + toString());
-	        if(CRC == crc)
+	        if(CRC.equals(crc))
 	        {
 	        	valid = true;
 	        }
@@ -130,7 +132,7 @@ public class Frame {
 	        	valid = false;
 	        }
 	        
-	        FS = Integer.parseInt(frame.substring(i+8,i+16),2);
+	        FS = Integer.parseInt(frame.substring(i+48,i+56),2);
     	}
     	frameType = type;
     }
@@ -188,11 +190,11 @@ public class Frame {
 	        SIZE = sIZE;
 	        Data = data;
 	        
+	        frameType = type;
+	        
 	        setCRC();
 	        
 	        FS = null;
-	                
-	        frameType = type;
         }
         else
         {
@@ -203,11 +205,11 @@ public class Frame {
 	        SIZE = sIZE;
 	        Data = data;
 	        
+	        frameType = type;
+	        
 	        setCRC();
 	        
     		FS = 0;
-	                
-	        frameType = type;
         }
     }
 
@@ -306,10 +308,7 @@ public class Frame {
         	}
         }
         
-        CRC = CRC % 256;
-        
-        System.out.println("CRC = " + CRC + " for frame: " + toString());
-        
+        CRC = CRC % 256;        
     }
     
     /**
@@ -325,6 +324,11 @@ public class Frame {
      */
     public boolean isValid()
     {
+    	if(valid)
+    		System.err.println(toString() + " is valid");
+    	else
+    		System.err.println(toString() + " is NOT valid");
+
     	return valid;
     }
 
@@ -446,6 +450,7 @@ public class Frame {
     		}
     		return false;
     	case RING:
+    		    		
     		if(AC != 128 && FC != 128 && FS == 192)
         	{
         		return true;

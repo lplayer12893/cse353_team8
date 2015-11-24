@@ -184,7 +184,7 @@ public class Switch {
 											writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 											writer.write(f.toBinFrame());
 											
-											System.out.println("Switch has flooded frame: " + f.toString());
+											//System.out.println("Switch has flooded frame: " + f.toString());
 											
 											writer.close();
 											s.close();
@@ -244,7 +244,7 @@ public class Switch {
 									writer = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
 									writer.write(f.toBinFrame());
 									
-									System.out.println("Switch has forwarded frame: " + f.toString());
+									//System.out.println("Switch has forwarded frame: " + f.toString());
 									
 									writer.close();
 									s.close();
@@ -357,7 +357,7 @@ public class Switch {
 								s = reader.readLine();
 								f = new Frame(s, FrameType.STAR);
 								
-								System.out.println("Switch has received frame: " + f.toString());
+								//System.out.println("Switch has received frame: " + f.toString());
 
 								if(f.isTerm())	// if is a termination frame, increment count of terminated nodes
 								{
@@ -380,7 +380,7 @@ public class Switch {
 										switchTable.put(f.getSA(), receivePorts.indexOf(recPort));
 									}
 									bufferOp(BufferOp.ADDLAST,f);
-									System.out.println("Switch added frame to buffer: " + f.toString());
+									//System.out.println("Switch added frame to buffer: " + f.toString());
 								}
 							}
 						}

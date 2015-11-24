@@ -31,6 +31,8 @@ public class Node {
 	private Integer hubSendPort;
 	private Integer switchReceivePort;
 	private Integer hubReceivePort;
+	private boolean hasSent;
+
 
 	public Node(){
 		this(0,null,null);
@@ -42,6 +44,7 @@ public class Node {
 		// init fields
 		termFlag = true;
 		hasToken = false;
+		hasSent = false;
 		waitAck = new ArrayList<Boolean>();
 		switchStatus = true;
 		hubStatus = true;
@@ -278,9 +281,9 @@ public class Node {
 									
 									if((!unAcked.contains(s.getDA())) || s.isAck()) 	//Send all other frames after
 									{
-										if(s.getFrameType() == FrameType.STAR || !hubStatus)	//send only frame data, or send all data if star is down
+										if(s.getFrameType() == FrameType.STAR || !hubStatus)	//send only star data, or send all data if star is down
 										{
-											System.out.println("Node " + address + " sending to Node " + s.getDA() + ": " + s.toString());
+											//System.out.println("Node " + address + " is (SWITCH) sending to Node " + s.getDA() + ": " + s.toString());
 											writer.write(s.toBinFrame());
 											writer.newLine();
 											
@@ -368,6 +371,7 @@ public class Node {
 					BufferedWriter writer = null;
 					Frame s = null;
 					boolean hasTerminated = false;
+					
 					while(termFlag) {
 						
 						if(dataOut.isEmpty() && forward.isEmpty())	//if there is no data to write to socket
@@ -396,20 +400,26 @@ public class Node {
 						
 						else
 						{
-							if(canSend() && hasToken)	//checks if socket can send data
+							if(forward.size() > 0)
+							{
+								sock = new Socket((String) null, hubSendPort);
+								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
+								for(int j = forward.size(); j > 0; j--)		//forward all frames first
+								{
+									s = forward.get(j-1);
+									writer.write(s.toBinFrame());
+									writer.newLine();
+									forward.remove(j-1);
+								}
+								writer.close();
+								sock.close();
+							}
+							else if(canSend() && hasToken && !hasSent)	//checks if socket can send data
 							{
 								sock = new Socket((String) null, hubSendPort);
 								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
 								int size = dataOut.size();
 								int i = 0;
-								
-								for(int j = forward.size(); j > 0; j--)		//forward all frames first
-								{
-									s = forward.get(j);
-									writer.write(s.toBinFrame());
-									writer.newLine();
-									forward.remove(j);
-								}
 
 								for(; i < dataOut.size(); i++)
 								{
@@ -422,10 +432,12 @@ public class Node {
 
 									if((!unAcked.contains(s.getDA())) || s.isAck()) 
 									{	
-										if(s.getFrameType() == FrameType.RING || !switchStatus)	//send only frame data, or send all data if star is down
+										if(s.getFrameType() == FrameType.RING || !switchStatus)	//send only ring data, or send all data if star is down
 										{
+											System.out.println("Node " + address + " is (RINGHUB) sending frame: " + s.toString());
 											writer.write(s.toBinFrame());
 											writer.newLine();
+											hasSent = true;
 		
 											if(!s.isAck())
 											{
@@ -436,11 +448,6 @@ public class Node {
 											{
 												dataOutOp(BufferOp.REM,null,i);	//remove acknowledgment after it is sent
 											}
-											
-											s = new Token();	//create new token and write to socket
-											writer.write(s.toBinFrame());
-											writer.newLine();
-											hasToken = false;
 
 											i--;
 											size--;
@@ -567,7 +574,7 @@ public class Node {
 							}
 							else if(f.isAck())	//if ACK frame found
 							{
-								System.out.println("Node " + address + " received frame: " + f.toString());
+								//System.out.println("Node " + address + " (SWITCH) received frame: " + f.toString());
 
 								for(int i = 0; i < unAcked.size(); i++)
 								{
@@ -582,7 +589,7 @@ public class Node {
 									Frame temp = dataOutOp(BufferOp.GET,null,i);
 									if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA())	//find correct data instance to remove
 									{
-										System.out.println("Node " + address + " has removed frame: " + temp.toString());
+										//System.out.println("Node " + address + " has removed frame: " + temp.toString());
 										dataOutOp(BufferOp.REM,null,i);	//remove data after acknowledgment
 										break;
 									}
@@ -595,7 +602,7 @@ public class Node {
 								dataOutOp(BufferOp.ADD,new Ack(address, f.getSA(), FrameType.STAR),0);	//add ACK frame for star
 								dataIn.add(f);
 								
-								System.out.println("Node " + address + " received frame: " + f.toString());
+								//System.out.println("Node " + address + " received frame: " + f.toString());
 							}
 							
 						}
@@ -662,6 +669,9 @@ public class Node {
 							client = ss.accept();
 						} catch (SocketTimeoutException e) {
 							
+							hasSent = false;
+							System.err.println("Node " + address + " has timed out");
+							
 							for(int i = 0; i < unAcked.size(); i++)
 							{
 								if(waitAck.get(i) == true)
@@ -690,47 +700,65 @@ public class Node {
 						{
 						
 							f = new Frame(s, FrameType.RING);
-														
+							System.out.println("Node " + address + " (RINGHUB) received frame: " + f.toString());
+				
 							if(f.isTerm())	//if terminate frame found
-							{		
+							{
+								System.err.println("Node " + address + " has received termination");
 								termFlag = false;
 								dataIn.add(f);
 							}
 							else if(f.isAck())	//if ACK frame found
 							{
-								System.out.println("Node " + address + " received frame: " + f.toString());
-
-								for(int i = 0; i < unAcked.size(); i++)
+								if(address == f.getDA())
 								{
-									if(unAcked.get(i) == f.getSA())
+									for(int i = 0; i < unAcked.size(); i++)
 									{
-										unAcked.remove(i);
-										waitAck.remove(i);
+										if(unAcked.get(i) == f.getSA())
+										{
+											unAcked.remove(i);
+											waitAck.remove(i);
+										}
 									}
+									for (int i = 0; i < dataOut.size(); i++)
+									{
+										Frame temp = dataOutOp(BufferOp.GET,null,i);
+										if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA())	//find correct data instance to remove
+										{
+											System.out.println("Node " + address + " has removed frame: " + temp.toString());
+											dataOutOp(BufferOp.REM,null,i);	//remove data after acknowledgment
+											break;
+										}
+									}
+									dataIn.add(f);
+									
+									forward.add(new Token());
+									
+									hasToken = false;
 								}
-								for (int i = 0; i < dataOut.size(); i++)
+								else
 								{
-									Frame temp = dataOutOp(BufferOp.GET,null,i);
-									if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA())	//find correct data instance to remove
-									{
-										System.out.println("Node " + address + " has removed frame: " + temp.toString());
-										dataOutOp(BufferOp.REM,null,i);	//remove data after acknowledgment
-										break;
-									}
+									forward.add(f);
 								}
-								dataIn.add(f);
 							}
 							else if(f.isToken())
 							{
 								System.out.println("Node " + address + " received Token");
 								hasToken = true;
+								hasSent = false;
 							}
 							else if(address == f.getDA())	// Data frame found
 							{
-								dataOutOp(BufferOp.ADD,new Ack(address, f.getSA(), FrameType.RING),0);	//add ACK frame for star
+								//dataOutOp(BufferOp.ADD,new Ack(address, f.getSA(), FrameType.RING),0);
+								
+								forward.add(new Ack(address, f.getSA(), FrameType.RING));
+								
 								dataIn.add(f);
 								
-								System.out.println("Node " + address + " received frame: " + f.toString());
+							}
+							else
+							{
+								forward.add(f);
 							}
 							
 						}
