@@ -66,12 +66,13 @@ public class Frame {
 	        
 	        Data = String.valueOf(tmp);
 	
-	        CRC = Integer.parseInt(frame.substring(i,i+8),2);
+	        CRC = Integer.parseInt(frame.substring(24+i,32+i),2);
 	        
 	        int crc = 0;
-	        for(int j = 0; j < s.length(); j++)
+	        String crc_str = frame.substring(0,24+i);
+	        for(int j = 0; j < crc_str.length(); j++)
 	        {
-	        	if(s.charAt(j) == '1')
+	        	if(crc_str.charAt(j) == '1')
 	        	{
 	        		crc++;
 	        	}
@@ -105,13 +106,13 @@ public class Frame {
 	        
 	        Data = String.valueOf(tmp);
 	
-	        CRC = Integer.parseInt(frame.substring(i,i+8),2);
+	        CRC = Integer.parseInt(frame.substring(40+i,48+i),2);
 	        
-	        String t = frame.substring(0,i);
 	        int crc = 0;
-	        for(int j = 0; j < s.length(); j++)
+	        String crc_str = frame.substring(0,40+i);
+	        for(int j = 0; j < crc_str.length(); j++)
 	        {
-	        	if(t.charAt(j) == '1')
+	        	if(crc_str.charAt(j) == '1')
 	        	{
 	        		crc++;
 	        	}

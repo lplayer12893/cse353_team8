@@ -185,6 +185,7 @@ public class RingHub {
 						f = null;
 						if(timeout == sendPorts.size())	// assume token was lost
 						{
+							System.out.println("Ringhub assuming TOKEN was lost");
 							nodesbufferOp(BufferOp.ADD,new BufferedItem(new Token(),0));
 							timeout = 0;
 						}
