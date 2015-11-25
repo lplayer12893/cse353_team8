@@ -32,6 +32,8 @@ public class Node {
 	private Integer switchReceivePort;
 	private Integer hubReceivePort;
 	private boolean hasSent;
+	private boolean finishedSwitch;
+	private boolean finishedHub;
 
 
 	public Node(){
@@ -45,6 +47,8 @@ public class Node {
 		termFlag = true;
 		hasToken = false;
 		hasSent = false;
+		finishedSwitch = false;
+		finishedHub = false;
 		waitAck = new ArrayList<Boolean>();
 		switchStatus = true;
 		hubStatus = true;
@@ -180,10 +184,15 @@ public class Node {
 				sendSwitchData();	//send data over star network
 				receiveHubData();	//begin receive data from hub (threaded)
 				receiveSwitchData();	//send data over ring network
+				
 				return;
 			}
 		};
 		chatter.start();
+		if(finishedSwitch && finishedHub)
+		{
+			printData();	//print only after all data has been received on both networks
+		}
 		return;
 	}
 	
@@ -587,7 +596,7 @@ public class Node {
 								for (int i = 0; i < dataOut.size(); i++)
 								{
 									Frame temp = dataOutOp(BufferOp.GET,null,i);
-									if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA())	//find correct data instance to remove
+									if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA() && f.getFrameType() == temp.getFrameType())	//find correct data instance to remove
 									{
 										//System.out.println("Node " + address + " has removed frame: " + temp.toString());
 										dataOutOp(BufferOp.REM,null,i);	//remove data after acknowledgment
@@ -627,7 +636,8 @@ public class Node {
 			
 				System.out.println("Node receive is returning");
 
-				printData();	//write output files after node finishes reading and writing
+				//printData();	//write output files after node finishes reading and writing
+				finishedSwitch = true;
 				return;
 			}
 		};
@@ -723,7 +733,7 @@ public class Node {
 									for (int i = 0; i < dataOut.size(); i++)
 									{
 										Frame temp = dataOutOp(BufferOp.GET,null,i);
-										if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA())	//find correct data instance to remove
+										if (f.getSA() == temp.getDA() && f.getDA() == temp.getSA() && f.getFrameType() == temp.getFrameType())	//find correct data instance to remove
 										{
 											System.out.println("Node " + address + " has removed frame: " + temp.toString());
 											dataOutOp(BufferOp.REM,null,i);	//remove data after acknowledgment
@@ -783,7 +793,8 @@ public class Node {
 			
 				System.out.println("Node receive is returning");
 
-				printData();	//write output files after node finishes reading and writing
+				//printData();	//write output files after node finishes reading and writing
+				finishedHub = false;
 				return;
 			}
 		};
