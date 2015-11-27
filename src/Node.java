@@ -32,9 +32,6 @@ public class Node {
 	private Integer switchReceivePort;
 	private Integer hubReceivePort;
 	private boolean hasSent;
-	private boolean finishedSwitch;
-	private boolean finishedHub;
-
 
 	public Node(){
 		this(0,null,null);
@@ -47,8 +44,6 @@ public class Node {
 		termFlag = true;
 		hasToken = false;
 		hasSent = false;
-		finishedSwitch = false;
-		finishedHub = false;
 		waitAck = new ArrayList<Boolean>();
 		switchStatus = true;
 		hubStatus = true;
@@ -189,10 +184,7 @@ public class Node {
 			}
 		};
 		chatter.start();
-		if(finishedSwitch && finishedHub)
-		{
-			printData();	//print only after all data has been received on both networks
-		}
+		
 		return;
 	}
 	
@@ -202,9 +194,7 @@ public class Node {
 	public void printData(){
 		FileWriter w = null;
 		String addr = String.valueOf(address);
-		
-		System.out.println("Node " + address + " is trying to print");
-		
+				
 		try {
 			w = new FileWriter("node" + addr + "output.txt");	//create output files
 			
@@ -246,11 +236,8 @@ public class Node {
 
 						if(dataOut.isEmpty())	//if there is no data to write to socket
 						{
-							System.out.println("Node " + address + " dataOut is empty");
 							if(unAcked.isEmpty())	//if all acknowledgments received
 							{
-								System.out.println("Node " + address + " unAcked is empty");
-
 								if(!hasTerminated)	//check for termination frame
 								{
 									hasTerminated = true;
@@ -382,10 +369,29 @@ public class Node {
 					boolean hasTerminated = false;
 					
 					while(termFlag) {
-						
-						if(dataOut.isEmpty() && forward.isEmpty())	//if there is no data to write to socket
+						if(forward.size() > 0)
 						{
-							if(unAcked.isEmpty())	//if all acknowledgments received
+							sock = new Socket((String) null, hubSendPort);
+							writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
+							for(int j = forward.size(); j > 0; j--)		//forward all frames first
+							{
+								s = forward.get(j-1);
+								writer.write(s.toBinFrame());
+								writer.newLine();
+								forward.remove(j-1);
+							}
+							writer.close();
+							sock.close();
+						}
+						
+						else if(dataOut.isEmpty())	//if there is no data to write to socket
+						{
+							if(hasToken)
+							{
+								forward.add(new Token());
+								hasToken = false;
+							}
+							if(unAcked.isEmpty() && forward.isEmpty())	//if all acknowledgments received
 							{
 								if(!hasTerminated)	//check for termination frame
 								{
@@ -409,21 +415,7 @@ public class Node {
 						
 						else
 						{
-							if(forward.size() > 0)
-							{
-								sock = new Socket((String) null, hubSendPort);
-								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
-								for(int j = forward.size(); j > 0; j--)		//forward all frames first
-								{
-									s = forward.get(j-1);
-									writer.write(s.toBinFrame());
-									writer.newLine();
-									forward.remove(j-1);
-								}
-								writer.close();
-								sock.close();
-							}
-							else if(canSend() && hasToken && !hasSent)	//checks if socket can send data
+							if(canSend() && hasToken && !hasSent)	//checks if socket can send data
 							{
 								sock = new Socket((String) null, hubSendPort);
 								writer = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));	//get socket outputStream
@@ -579,7 +571,7 @@ public class Node {
 							if(f.isTerm())	//if terminate frame found
 							{		
 								termFlag = false;
-								dataIn.add(f);
+								//dataIn.add(f);
 							}
 							else if(f.isAck())	//if ACK frame found
 							{
@@ -603,7 +595,7 @@ public class Node {
 										break;
 									}
 								}
-								dataIn.add(f);
+								//dataIn.add(f);
 							}
 								
 							else if(address == f.getDA())	//Data frame found
@@ -636,8 +628,7 @@ public class Node {
 			
 				System.out.println("Node receive is returning");
 
-				//printData();	//write output files after node finishes reading and writing
-				finishedSwitch = true;
+				printData();	//write output files after node finishes reading and writing switch data
 				return;
 			}
 		};
@@ -716,7 +707,7 @@ public class Node {
 							{
 								System.err.println("Node " + address + " has received termination");
 								termFlag = false;
-								dataIn.add(f);
+								//dataIn.add(f);
 							}
 							else if(f.isAck())	//if ACK frame found
 							{
@@ -740,7 +731,7 @@ public class Node {
 											break;
 										}
 									}
-									dataIn.add(f);
+									//dataIn.add(f);
 									
 									forward.add(new Token());
 									
@@ -793,8 +784,7 @@ public class Node {
 			
 				System.out.println("Node receive is returning");
 
-				//printData();	//write output files after node finishes reading and writing
-				finishedHub = false;
+				printData();	//write output files after node finishes reading and writing hub data
 				return;
 			}
 		};
